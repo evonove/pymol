@@ -166,7 +166,7 @@ lib_dirs = []
 ext_comp_args = []
 ext_link_args = []
 
-if True:
+if False:
     # VMD plugin support
     pymol_src_dirs += [
         'contrib/uiuc/plugins/include',
@@ -183,12 +183,17 @@ if sys.platform=='win32':
     # NOTE: this branch not tested in years and may not work...
     inc_dirs += [
               "win32/include"]
-    libs=["opengl32","glu32","glut32","libpng","zlib"]
+    libs=["opengl32","glu32","glut32","libpng","zlibwapi", "glew32", "User32", "advapi32"]
     pyogl_libs = ["opengl32","glu32","glut32"]
     lib_dirs=["win32/lib"]
     def_macros += [
                 ("WIN32",None),
                 ("_PYMOL_LIBPNG",None),
+				("_PYMOL_OPENGL_SHADERS", None),
+				("_PYMOL_CGO_DRAWBUFFERS", None),
+				("_PYMOL_CGO_DRAWARRAYS", None),
+				("OPENGL_ES_2", None),
+				("_USE_MATH_DEFINES", None),
                 ]
     ext_link_args=['/NODEFAULTLIB:"LIBC"']
 #============================================================================
