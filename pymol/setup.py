@@ -267,8 +267,11 @@ distribution = setup ( # Distribution meta-data
     contact   = "pymol-users@lists.sourceforge.net",
     description = "PyMOL is a Python-enhanced molecular graphics tool. It excels at 3D visualization of proteins, small molecules, density, surfaces, and trajectories. It also includes molecular editing, ray tracing, and movies. Open Source PyMOL is free to everyone!", 
 
-    package_dir = {'' : 'modules'},
     packages = get_packages('modules'),
+    package_dir = {'' : 'modules'},
+    package_data = {
+        'pymol' : ['*.dll']
+    },
 
     ext_modules = [
         Extension("pymol._cmd",
