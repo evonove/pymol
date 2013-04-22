@@ -183,7 +183,7 @@ if sys.platform=='win32':
     # NOTE: this branch not tested in years and may not work...
     inc_dirs += [
               "win32/include"]
-    libs=["opengl32","glu32","glut32","libpng","zlibwapi", "glew32", "User32", "advapi32"]
+    libs=["opengl32","glu32","glut32","libpng","zdll", "glew32", "User32", "advapi32"]
     pyogl_libs = ["opengl32","glu32","glut32"]
     lib_dirs=["win32/lib"]
     def_macros += [
