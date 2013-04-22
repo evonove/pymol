@@ -193,6 +193,7 @@ class Cmd:
         
         self.auto_arg = pymol.completing.get_auto_arg_list(self)
         self.color_sc = None
+        self.group_sc = global_cmd.group_sc
 
         # keyboard configuration
                 
