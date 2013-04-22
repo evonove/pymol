@@ -186,6 +186,7 @@ class Cmd:
         self.map_sc = lambda sc=self.Shortcut,gnot=self.get_names_of_type:sc(gnot('object:map'))
         self.contour_sc =  lambda sc=self.Shortcut,gnot=self.get_names_of_type:sc(
             gnot('object:mesh')+gnot('object:surface'))
+        self.group_sc = lambda sc=self.Shortcut,gnot=self.get_names_of_type:sc(gnot('object:group'))
         
         self.fb_action_sc = pymol.feedingback.fb_action_sc
         self.fb_module_sc = pymol.feedingback.fb_module_sc
@@ -193,7 +194,6 @@ class Cmd:
         
         self.auto_arg = pymol.completing.get_auto_arg_list(self)
         self.color_sc = None
-        self.group_sc = global_cmd.group_sc
 
         # keyboard configuration
                 
