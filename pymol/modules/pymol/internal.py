@@ -304,10 +304,10 @@ def file_read(finfo):
         if not isinstance(finfo, basestring):
             handle = finfo
         elif '://' in finfo:
-            import urllib
+            import urllib2 as urllib
             handle = urllib.urlopen(finfo)
         else:
-            handle = open(finfo)
+            handle = open(finfo, 'rb')
         contents = handle.read()
         handle.close()
     except IOError:

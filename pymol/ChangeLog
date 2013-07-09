@@ -2,6 +2,69 @@
 CHANGE LOG
 =========================================================================
 
+2013-06-21 Blaine Bell <blaine.bell@schrodinger.com>
+
+	* fixed selection indicators
+
+2013-06-18 Blaine Bell, Thomas Holder
+
+	* fixed loading in bg_rgb settings from old project pse files
+
+	* add URL support for run command
+
+2013-06-13 Blaine Bell <blaine.bell@schrodinger.com>
+
+	* fixed labels when use_shaders is 0 and show_frame_rate is on
+
+2013-06-12 Thomas Holder <thomas.holder@schrodinger.com>
+
+	* update APBS Tools plugin
+
+	* fix spectrumany when minimum/maximum are provided
+
+2013-06-11 Blaine Bell <blaine.bell@schrodinger.com>
+
+	* Open Source PyMOL v1.6.0.0
+
+	* freeing VBOs properly when deleting volumes
+
+	* added quiet flag for SettingGenerateSideEffects() and SettingCheckUseShaders()
+
+	* fix 15bit color picking
+
+	* fix surface memory leak
+
+	* fix CGO demo
+
+2013-06-10 Thomas Holder <thomas.holder@schrodinger.com>
+
+	* internal.file_read: use urllib2 instead of urllib
+
+	* fix ellipsoid transparency OpenGL rendering
+
+2013-05-27 Thomas Holder, Blaine Bell
+
+	* fix surface normals
+
+	* fix Scripts ending with ...pymol.py do not execute
+	  https://sourceforge.net/p/pymol/bugs/46/
+
+	* several CGO fixes
+
+	* several python fixes
+
+2013-04-26 Thomas Holder <thomas.holder@schrodinger.com>
+
+	* refactored importing.fetch
+
+	* spectrum enhancements (arbitrary expressions and colors)
+
+	* pymol2.cmd2: implement proxy pattern
+
+	* chempy model improvements
+
+	* fix bg_color, which sometimes did not apply instantly
+
 2013-04-17 Thomas Holder <thomas.holder@schrodinger.com>
 
 	* support full path for "matrix" argument

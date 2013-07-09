@@ -400,12 +400,14 @@ SEE ALSO
         if _self._raising(r,_self): raise pymol.CmdException            
         return r
 
-    def push_undo(selection, state=0, _self=cmd):
+    def push_undo(selection, just_coordinates=1, finish_undo=0, add_objects=0, delete_objects=0, state=0, _self=cmd):
         '''
 DESCRIPTION
 
     "push_undo" stores the current conformations of objects in the
     selection onto their individual undo rings.
+
+    Notice: This command is only partly implemented in open-source PyMOL.
 
 USAGE
 
@@ -587,7 +589,7 @@ PYMOL API
             r = _cmd.invert(_self._COb,int(quiet))
         finally:
             _self.unlock(r,_self)
-        if _self._raising(r,_self): raise pymol.QuietException            
+        if _self._raising(r,_self): raise cmd.QuietException
         return r
 
     def unbond(atom1="(pk1)", atom2="(pk2)", quiet=1, _self=cmd):

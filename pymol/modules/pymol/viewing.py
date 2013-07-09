@@ -36,6 +36,19 @@ if __name__=='pymol.viewing':
           DEFAULT_ERROR, DEFAULT_SUCCESS
         
     import thread
+
+    palette_colors_dict = {
+        'rainbow_cycle'     : 'magenta blue cyan green yellow orange red magenta',
+        'rainbow_cycle_rev' : 'magenta red orange yellow green cyan blue magenta',
+        'rainbow'           : 'blue cyan green yellow orange red',
+        'rainbow_rev'       : 'red orange yellow green cyan blue',
+        'rainbow2'          : 'blue cyan green yellow orange red',
+        'rainbow2_rev'      : 'red orange yellow green cyan blue',
+        'gcbmry'            : 'green cyan blue magenta red yellow',
+        'yrmbcg'            : 'yellow red magenta blue cyan green',
+        'cbmr'              : 'cyan blue magenta red',
+        'rmbc'              : 'red magenta blue cyan',
+    }
     
     rep_list = [ "lines", "sticks", "spheres", "dots", "surface",
                  "mesh", "nonbonded", "nb_spheres", "cartoon",
@@ -1380,9 +1393,9 @@ SEE ALSO
                 if action=='clear':
                     for key in pymol._scene_dict.keys():
                         # free selections
-                        list = pymol._scene_dict[key]
-                        if len(list)>3:
-                            colorection = list[3]
+                        scene_list = pymol._scene_dict[key]
+                        if len(scene_list)>3:
+                            colorection = scene_list[3]
                             if colorection!=None:
                                 _self.del_colorection(colorection,key) 
                         name = "_scene_"+key+"_*"
@@ -1414,6 +1427,8 @@ SEE ALSO
                         print "Error: scene '%s' not found."%key
                     elif new_key==None:
                         print "Error: must provide the 'new_key' argument"
+                    elif new_key == key:
+                        print "scene: '%s' not changed" % key
                     else:
                         new_scene_order = []
                         for a in pymol._scene_order:
@@ -1430,9 +1445,9 @@ SEE ALSO
                             if name in valid_names:
                                 new_name = "_scene_"+new_key+"_"+rep_name
                                 _self.set_name(name,new_name)
-                        list = pymol._scene_dict[new_key]
-                        if len(list)>3:
-                            _self.set_colorection_name(list[3],key,new_key)
+                        scene_list = pymol._scene_dict[new_key]
+                        if len(scene_list)>3:
+                            _self.set_colorection_name(scene_list[3],key,new_key)
                         print" scene: '%s' renamed to '%s'."%(key,new_key)
                         pymol._scene_dict_sc.rebuild( pymol._scene_dict.keys())
                         _self.set("session_changed",1,quiet=1)
@@ -1451,29 +1466,29 @@ SEE ALSO
                     _self.set("scenes_changed",1,quiet=1);
                     key = pymol._scene_dict_sc.auto_err(key,'scene')
                     _self.set('scene_current_name', key, quiet=1)               
-                    list = pymol._scene_dict[key]
-                    ll = len(list)
+                    scene_list = pymol._scene_dict[key]
+                    ll = len(scene_list)
                     if (ll>1) and (active):
-                        if list[1]!=None:
+                        if scene_list[1]!=None:
                             _self.disable()
                             _self.deselect()
-                            _self.set_vis(list[1])
+                            _self.set_vis(scene_list[1])
                     if (ll>2) and (frame):
-                        if list[2]!=None:
+                        if scene_list[2]!=None:
                             if not _self.get_movie_playing(): # don't set frame when movie is already playing
-                                if _self.get_frame()!=list[2]: # only set the frame when it isn't already correct
-                                    _self.frame(list[2],scene=1) # let frame know that it is being set by a scene
+                                if _self.get_frame()!=scene_list[2]: # only set the frame when it isn't already correct
+                                    _self.frame(scene_list[2],scene=1) # let frame know that it is being set by a scene
                             else:
                                 _self.set_frame(1,10) # seek scene
                     if (ll>3) and (color):
-                        if list[3]!=None:
-                            _self.set_colorection(list[3],key)
+                        if scene_list[3]!=None:
+                            _self.set_colorection(scene_list[3],key)
                     if (ll>4) and (rep):
-                        if list[4]==None:
+                        if scene_list[4]==None:
                             rep = 0
                     if (ll>5) and (message==None):
-                        if list[5]!=None:
-                            message=list[5]
+                        if scene_list[5]!=None:
+                            message=scene_list[5]
                     if rep!=0:
                         _self.hide("(all)")
                         valid_names = _self.get_names("all")
@@ -1508,8 +1523,8 @@ SEE ALSO
                     if replace_flag and not mess_flag:
                         _self.wizard()
                     if (ll>0) and (view):
-                        if list[0]!=None:
-                            _self.set_view(list[0],animate,quiet,hand)
+                        if scene_list[0]!=None:
+                            _self.set_view(scene_list[0],animate,quiet,hand)
                     if not quiet and _feedback(fb_module.scene,fb_mask.actions,_self): # redundant
                         print " scene: \"%s\" recalled."%key
                 elif (action=='store') or (action=='update'):
@@ -1522,11 +1537,11 @@ SEE ALSO
                     if not pymol._scene_dict.has_key(key):
                         pymol._scene_dict_sc.append(key)
                     else: # get rid of existing one (if exists)
-                        list = pymol._scene_dict[key]
-                        if (action=='update') and (message==None) and len(list)>5:
+                        scene_list = pymol._scene_dict[key]
+                        if (action=='update') and (message==None) and len(scene_list)>5:
                             message = pymol._scene_dict[key][5]
-                        if len(list)>3:
-                            colorection = list[3]
+                        if len(scene_list)>3:
+                            colorection = scene_list[3]
                             if colorection!=None:
                                 _self.del_colorection(colorection,key) # important -- free RAM
                         name = "_scene_"+key+"_*"
@@ -1562,9 +1577,9 @@ SEE ALSO
                         key = setting.get("scene_current_name",_self=_self)
                     key = pymol._scene_dict_sc.auto_err(key,'scene')
                     if pymol._scene_dict.has_key(key):
-                        list = pymol._scene_dict[key]
-                        if len(list)>3:
-                            colorection = list[3]
+                        scene_list = pymol._scene_dict[key]
+                        if len(scene_list)>3:
+                            colorection = scene_list[3]
                             if colorection!=None:
                                 _self.del_colorection(colorection,key) # important -- free RAM
                         lst = _scene_validate_list(_self)
@@ -2497,6 +2512,81 @@ EXAMPLE
         if _self._raising(r,_self): raise QuietException
         return r
 
+    def spectrumany(expression, colors, selection='(all)', minimum=None,
+            maximum=None, quiet=1, _self=cmd):
+        '''
+DESCRIPTION
+
+    Pure python implementation of the spectrum command. Supports arbitrary
+    color lists instead of palettes and any numerical atom property which
+    works in iterate as expression.
+
+    Non-numeric values (like resn) will be enumerated.
+
+    This is not a separate PyMOL command but is used as a fallback in "spectrum".
+        '''
+        from . import CmdException
+
+        if ' ' not in colors:
+            colors = palette_colors_dict.get(colors) or colors.replace('_', ' ')
+
+        quiet, colors = int(quiet), colors.split()
+
+        n_colors = len(colors)
+        if n_colors < 2:
+            raise CmdException('please provide at least 2 colors')
+
+        col_tuples = [_self.get_color_tuple(i) for i in colors]
+        if None in col_tuples:
+            raise CmdException('unknown color')
+
+        expression = {'pc': 'partial_charge', 'fc': 'formal_charge',
+                'resi': 'resv'}.get(expression, expression)
+
+        if expression == 'count':
+            e_list = range(_self.count_atoms(selection))
+        else:
+            e_list = []
+            _self.iterate(selection, 'e_list.append(%s)' % (expression), space=locals())
+
+        try:
+            v_list = [float(v) for v in e_list if v is not None]
+        except (TypeError, ValueError):
+            if not quiet:
+                print ' Spectrum: Expression is non-numeric, enumerating values'
+            v_list = e_list = map(sorted(set(e_list)).index, e_list)
+
+        if not v_list:
+            return (0., 0.)
+
+        if minimum is None: minimum = min(v_list)
+        if maximum is None: maximum = max(v_list)
+        r = minimum, maximum = float(minimum), float(maximum)
+        if not quiet:
+            print ' Spectrum: range (%.5f to %.5f)' % r
+
+        val_range = maximum - minimum
+        if not val_range:
+            _self.color(colors[0], selection)
+            return r
+
+        e_it = iter(e_list)
+        def next_color():
+            v = e_it.next()
+            if v is None:
+                return False
+            v = min(1.0, max(0.0, (float(v) - minimum) / val_range)) * (n_colors - 1)
+            i = min(int(v), n_colors - 2)
+            p = v - i
+            rgb = [int(255 * (col_tuples[i+1][j] * p + col_tuples[i][j] * (1.0 - p)))
+                    for j in range(3)]
+            return 0x40000000 + rgb[0] * 0x10000 + rgb[1] * 0x100 + rgb[2]
+
+        _self.alter(selection, 'color = next_color() or color', space=locals())
+        _self.recolor(selection)
+
+        return r
+
     def spectrum(expression="count", palette="rainbow",
                  selection="(all)", minimum=None, maximum=None,
                  byres=0, quiet=1, _self=cmd):
@@ -2516,7 +2606,8 @@ ARGUMENTS
     expression = count, b, q, or pc: respectively, atom count, temperature factor,
     occupancy, or partial charge {default: count}
     
-    palette = string: palette name {default: rainbow}
+    palette = string: palette name or space separated list of colors
+    {default: rainbow}
 
     selection = string: atoms to color {default: (all)}
 
@@ -2560,8 +2651,13 @@ PYMOL API
 
 
         '''
+        palette_hit = palette_sc.shortcut.get(palette)
+        if palette_hit:
+            palette = palette_hit
 
-        palette = palette_sc.auto_err(palette,'palette')
+        if expression not in ('count', 'b', 'q', 'pc') or not palette_hit:
+            return spectrumany(expression, palette, selection,
+                    minimum, maximum, quiet, _self)
         
         (prefix,digits,first,last) = palette_dict[str(palette)]
 

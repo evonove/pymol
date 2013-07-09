@@ -8474,26 +8474,75 @@ void ExecutiveRenderSelections(PyMOLGlobals * G, int curState, int slot, GridInf
   int any_active = false;
   int no_depth = (int) SettingGetGlobal_f(G, cSetting_selection_overlay);
   short use_shader = (short) SettingGetGlobal_b(G, cSetting_use_shaders);
+  float min_width;
+  float gl_width;
+  int width;
+  int max_width = (int) SettingGetGlobal_f(G, cSetting_selection_width_max);
+  float width_scale = SettingGetGlobal_f(G, cSetting_selection_width_scale);
+  int round_points = SettingGetGlobal_b(G, cSetting_selection_round_points);
+  short inv_indicators = false;
+  min_width = SettingGetGlobal_f(G, cSetting_selection_width);
+  if(width_scale >= 0.0F) {
+    width = (int) ((width_scale *
+		    fabs(SettingGetGlobal_f(G, cSetting_stick_radius)) /
+		    SceneGetScreenVertexScale(G, NULL)));
+    if(width < min_width)
+      width = (int) min_width;
+    else if(width > max_width)
+      width = (int) max_width;
+  } else
+    width = (int) min_width;
+  if(round_points) {
+    width = (int) (width * 1.44F);
+  }
+  gl_width = (float) width;
+  if(width > 6) {   /* keep it even above 6 */
+    if(width & 0x1) {
+      width--;
+      gl_width = (float) width;
+    }
+  }
 
   if (use_shader){
+    if (I->selectorTextureSize!=(int)gl_width || round_points != I->selectorIsRound ){
+      inv_indicators = true;
+    } else {
+      if (slot){
+	while(ListIterate(I->Spec, rec, next)) {
+	  if(rec->type == cExecObject) {
+	    if (SceneGetDrawFlagGrid(G, grid, rec->obj->grid_slot)){
+	      if (rec->gridSlotSelIndicatorsCGO){
+		ExecutiveRenderIndicatorCGO(G, rec->gridSlotSelIndicatorsCGO);
+	      }
+	    }
+	  }
+	}
+	rec = NULL;
+      } else if (I->selIndicatorsCGO){
+	ExecutiveRenderIndicatorCGO(G, I->selIndicatorsCGO);
+	return;
+      }
+    }
+  } else {
+    inv_indicators = true;
+  }
+  if (inv_indicators){
+    if (I->selIndicatorsCGO){
+      CGOFree(I->selIndicatorsCGO);
+      I->selIndicatorsCGO = NULL;
+    }
     if (slot){
       while(ListIterate(I->Spec, rec, next)) {
 	if(rec->type == cExecObject) {
 	  if (SceneGetDrawFlagGrid(G, grid, rec->obj->grid_slot)){
 	    if (rec->gridSlotSelIndicatorsCGO){
-	      ExecutiveRenderIndicatorCGO(G, rec->gridSlotSelIndicatorsCGO);
+	      CGOFree(rec->gridSlotSelIndicatorsCGO);
+	      rec->gridSlotSelIndicatorsCGO = NULL;
 	    }
 	  }
 	}
       }
-      rec = NULL;
-    } else if (I->selIndicatorsCGO){
-      ExecutiveRenderIndicatorCGO(G, I->selIndicatorsCGO);
-      return;
     }
-  } else if (I->selIndicatorsCGO){
-    CGOFree(I->selIndicatorsCGO);
-    I->selIndicatorsCGO = NULL;
   }
   while(ListIterate(I->Spec, rec, next)) {
     if(rec->type == cExecSelection) {
@@ -8507,54 +8556,24 @@ void ExecutiveRenderSelections(PyMOLGlobals * G, int curState, int slot, GridInf
   if(any_active) {
     SpecRec *rec1;
     int sele;
-    float min_width;
-    float gl_width;
-    int width;
-
-    int max_width = (int) SettingGetGlobal_f(G, cSetting_selection_width_max);
-    float width_scale = SettingGetGlobal_f(G, cSetting_selection_width_scale);
-    int round_points = SettingGetGlobal_b(G, cSetting_selection_round_points);
     int vis_only = SettingGetGlobal_b(G, cSetting_selection_visible_only);
     int fog = SettingGetGlobal_b(G, cSetting_depth_cue) && SettingGetGlobal_f(G, cSetting_fog);
 
     (void)fog;
 
     rec = NULL;
-    min_width = SettingGetGlobal_f(G, cSetting_selection_width);
 
-    if(width_scale >= 0.0F) {
-      width = (int) ((width_scale *
-                      fabs(SettingGetGlobal_f(G, cSetting_stick_radius)) /
-                      SceneGetScreenVertexScale(G, NULL)));
-      if(width < min_width)
-        width = (int) min_width;
-      else if(width > max_width)
-        width = (int) max_width;
-    } else
-      width = (int) min_width;
-
-    if(round_points) {
-      width = (int) (width * 1.44F);
-    }
     if(round_points) {
       glEnable(GL_POINT_SMOOTH);
       glAlphaFunc(GL_GREATER, 0.5F);
       glEnable(GL_ALPHA_TEST);
       glHint(GL_POINT_SMOOTH_HINT, GL_NICEST);
-      width = (int) (width * 1.44F);
     } else {
       glDisable(GL_POINT_SMOOTH);
       glDisable(GL_ALPHA_TEST);
       glHint(GL_POINT_SMOOTH_HINT, GL_FASTEST);
     }
 
-    gl_width = (float) width;
-    if(width > 6) {   /* keep it even above 6 */
-      if(width & 0x1) {
-	width--;
-	gl_width = (float) width;
-      }
-    }
     if (use_shader && (I->selectorTextureSize!=(int)gl_width || round_points != I->selectorIsRound )){
       int level_widths[] = { 0, 0, 0 };
       level_widths[0] = (int)gl_width;
@@ -12003,7 +12022,7 @@ int ExecutiveSetBondSettingFromString(PyMOLGlobals * G,
     }
   }
   if(side_effects) {
-    SettingGenerateSideEffects(G, index, s1, state); /* not strickly correct */
+    SettingGenerateSideEffects(G, index, s1, state, quiet); /* not strickly correct */
     /*    SettingGenerateSideEffects(G,index,s2,state); */
   }
   return (ok);
@@ -12228,7 +12247,7 @@ int ExecutiveSetBondSetting(PyMOLGlobals * G, int index, PyObject * tuple,
     }
   }
   if(side_effects) {
-    SettingGenerateSideEffects(G, index, s1, state);  /* not strictly correct */
+    SettingGenerateSideEffects(G, index, s1, state, quiet);  /* not strictly correct */
     /*    SettingGenerateSideEffects(G,index,s2,state); */
   }
 
@@ -12292,7 +12311,7 @@ int ExecutiveUnsetBondSetting(PyMOLGlobals * G, int index, char *s1, char *s2,
     }
   }
   if(side_effects) {
-    SettingGenerateSideEffects(G, index, s1, state);
+    SettingGenerateSideEffects(G, index, s1, state, quiet);
     /*    SettingGenerateSideEffects(G,index,s2,state); */
   }
   /* PAutoUnblock(G, unblock); */
@@ -12333,7 +12352,7 @@ int ExecutiveSetSetting(PyMOLGlobals * G, int index, PyObject * tuple, char *sel
         }
       }
       if(updates) {
-        SettingGenerateSideEffects(G, index, cKeywordAll, state);
+        SettingGenerateSideEffects(G, index, cKeywordAll, state, quiet);
       }
     }
   }
@@ -12492,7 +12511,7 @@ int ExecutiveSetSetting(PyMOLGlobals * G, int index, PyObject * tuple, char *sel
     TrackerDelIter(I_Tracker, iter_id);
 
     if(side_effects)
-      SettingGenerateSideEffects(G, index, sele, state);
+      SettingGenerateSideEffects(G, index, sele, state, quiet);
   }
   PAutoUnblock(G, unblock);
   return (ok);
@@ -12616,7 +12635,7 @@ int ExecutiveSetSettingFromString(PyMOLGlobals * G,
         }
       }
       if(updates)
-        SettingGenerateSideEffects(G, index, sele, state);
+        SettingGenerateSideEffects(G, index, sele, state, quiet);
     }
   }
   else {
@@ -12636,7 +12655,7 @@ int ExecutiveSetSettingFromString(PyMOLGlobals * G,
                   SettingCheckHandle(G, handle);
                   ok = SettingSetFromString(G, *handle, index, value);
                   if(updates)
-                    SettingGenerateSideEffects(G, index, rec->name, state);
+                    SettingGenerateSideEffects(G, index, rec->name, state, quiet);
                   nObj++;
                 }
               }
@@ -12680,7 +12699,7 @@ int ExecutiveSetSettingFromString(PyMOLGlobals * G,
                   ObjectMoleculeSeleOp(obj, sele1, &op);
                   if(op.i4) {
                     if(updates)
-                      SettingGenerateSideEffects(G, index, rec->name, state);
+                      SettingGenerateSideEffects(G, index, rec->name, state, quiet);
                     if(!quiet) {
                       SettingGetName(G, index, name);
                       PRINTF
@@ -12701,7 +12720,7 @@ int ExecutiveSetSettingFromString(PyMOLGlobals * G,
               ok = SettingSetFromString(G, *handle, index, value);
               if(ok) {
                 if(updates)
-                  SettingGenerateSideEffects(G, index, sele, state);
+                  SettingGenerateSideEffects(G, index, sele, state, quiet);
                 if(!quiet) {
                   if(state < 0) {       /* object-specific */
                     if(Feedback(G, FB_Setting, FB_Actions)) {
@@ -12756,7 +12775,7 @@ int ExecutiveSetObjSettingFromString(PyMOLGlobals * G,
         }
       }
       if(updates)
-        SettingGenerateSideEffects(G, index, obj->Name, state);
+        SettingGenerateSideEffects(G, index, obj->Name, state, quiet);
     }
   } else {                      /* based on a single object */
     if(obj->fGetSettingHandle) {
@@ -12766,7 +12785,7 @@ int ExecutiveSetObjSettingFromString(PyMOLGlobals * G,
         ok = SettingSetFromString(G, *handle, index, value);
         if(ok) {
           if(updates)
-            SettingGenerateSideEffects(G, index, obj->Name, state);
+            SettingGenerateSideEffects(G, index, obj->Name, state, quiet);
           if(!quiet) {
             if(state < 0) {     /* object-specific */
               if(Feedback(G, FB_Setting, FB_Actions)) {
@@ -12922,7 +12941,7 @@ int ExecutiveUnsetSetting(PyMOLGlobals * G, int index, char *sele,
     TrackerDelIter(I_Tracker, iter_id);
   }
   if(side_effects)
-    SettingGenerateSideEffects(G, index, sele, state);
+    SettingGenerateSideEffects(G, index, sele, state, quiet);
   PAutoUnblock(G, unblock);
   return (ok);
 }
@@ -16710,6 +16729,14 @@ int ExecutiveReinitialize(PyMOLGlobals * G, int what, char *pattern)
     case 4:                    /* purge_defaults */
       SettingPurgeDefault(G);
       break;
+      /* reinitialize is called with what + 5 to reset internal_gui if necessary (PYMOL-1425) */
+    case 5:
+    case 6:
+      if (G->Default){
+	SettingSetGlobal_i(G, cSetting_internal_gui, SettingGet_i(G, G->Default, NULL, cSetting_internal_gui));
+	SettingGenerateSideEffects(G, cSetting_internal_gui, cKeywordAll, -1, 0);
+      }
+      break; 
     }
   } else {
     {
