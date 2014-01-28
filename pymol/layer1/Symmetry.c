@@ -84,7 +84,7 @@ int SymmetryFromPyList(CSymmetry * I, PyObject * list)
     }
   }
   if(ok) {
-    ok = SymmetryAttemptGeneration(I, true);
+    SymmetryAttemptGeneration(I, true);
   }
   /* TO SUPPORT BACKWARDS COMPATIBILITY...
      Always check ll when adding new PyList_GetItem's */
@@ -238,6 +238,7 @@ void SymmetryUpdate(CSymmetry * I)
 {
   if(I->Crystal)
     CrystalUpdate(I->Crystal);
+  SymmetryAttemptGeneration(I, false);
 }
 
 void SymmetryDump(CSymmetry * I)

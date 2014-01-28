@@ -73,13 +73,7 @@
 #include"ShaderMgr.h"
 
 #ifndef _PYMOL_NOPY
-#include"ce_types.h"
-/* Externals for CEAlign  */
-extern double** calcDM(pcePoint coords, int len);
-extern double** calcS(double** d1, double** d2, int lenA, int lenB, int wSize);
-extern pcePoint getCoords(PyObject *L, int length);
-extern pathCache findPath(double** S, double** dA, double** dB, int lenA, int lenB, float D0, float D1, int winSize, int gapMax, int * bufferSize);
-extern PyObject* findBest( pcePoint coordsA, pcePoint coordsB, pathCache paths, int bufferSize, int smaller, int winSize);
+#include "ce_types.h"
 #endif
 
 /* HACK */
@@ -897,6 +891,7 @@ int ExecutiveIsomeshEtc(PyMOLGlobals * G,
   ObjectMapState *ms;
   OrthoLineType s1;
   ObjectMolecule *sele_obj = NULL;
+  CSymmetry *symm;
 
   /* (pattern) if old_name(origObj) exists, overwrite it */
   origObj = ExecutiveFindObjectByName(G, mesh_name);
@@ -998,10 +993,19 @@ int ExecutiveIsomeshEtc(PyMOLGlobals * G,
           " Isomesh: buffer %8.3f carve %8.3f \n", fbuf, carve ENDFB(G);
         if(sele_obj
            && SettingGet_b(G, NULL, sele_obj->Obj.Setting, cSetting_map_auto_expand_sym)
-           && (sele_obj->Symmetry) && ObjectMapValidXtal(mapObj, state)) {
+           && (sele_obj->Symmetry)) {
+          // legacy default: take symmetry from molecular object
+          symm = sele_obj->Symmetry;
+        } else if(SettingGet_b(G, NULL, mapObj->Obj.Setting, cSetting_map_auto_expand_sym)) {
+          // fallback: take symmetry from map state
+          symm = ms->Symmetry;
+        } else {
+          symm = NULL;
+        }
 
+        if(symm && ObjectMapValidXtal(mapObj, state)) {
           obj = (CObject *) ObjectMeshFromXtalSym(G, (ObjectMesh *) origObj, mapObj,
-                                                  sele_obj->Symmetry,
+                                                  symm,
                                                   map_state, state, mn, mx, lvl,
                                                   mesh_mode, carve, vert_vla, alt_lvl,
                                                   quiet);
@@ -3739,6 +3743,7 @@ CObject *ExecutiveGetExistingCompatible(PyMOLGlobals * G, char *oname, int type)
     case cLoadTypeTOP:
     case cLoadTypeTRJ:
     case cLoadTypeCRD:
+    case cLoadTypeRST:
     case cLoadTypeMOL2:
     case cLoadTypeMOL2Str:
     case cLoadTypeSDF2:
@@ -4961,6 +4966,11 @@ static int ExecutiveSetNamedEntries(PyMOLGlobals * G, PyObject * names, int vers
           strcpy(rec->name, new_name);
         }
 
+        // replace existing object (unless auto_rename_duplicate_objects=1)
+        if(ExecutiveValidName(G, rec->name)) {
+          ExecutiveDelete(G, rec->name);
+        }
+
         switch (rec->type) {
         case cExecObject:
           if(rec->visible) {
@@ -5854,7 +5864,6 @@ int ExecutiveSetSymmetry(PyMOLGlobals * G, char *sele, int state, float a, float
   ObjectMap *objMap;
   int ok = true;
   CSymmetry *symmetry = NULL;
-  CCrystal *crystal = NULL;
   int n_obj;
   int i, s;
   int do_all_states = false;
@@ -5873,6 +5882,18 @@ int ExecutiveSetSymmetry(PyMOLGlobals * G, char *sele, int state, float a, float
     state--;
   }
 
+  /* create a new symmetry object for copying */
+  symmetry = SymmetryNew(G);
+  th_assert(1, ok = symmetry);
+  symmetry->Crystal->Dim[0] = a;
+  symmetry->Crystal->Dim[1] = b;
+  symmetry->Crystal->Dim[2] = c;
+  symmetry->Crystal->Angle[0] = alpha;
+  symmetry->Crystal->Angle[1] = beta;
+  symmetry->Crystal->Angle[2] = gamma;
+  UtilNCopy(symmetry->SpaceGroup, sgroup, sizeof(WordType));
+  SymmetryAttemptGeneration(symmetry, false);
+
   objVLA = ExecutiveSeleToObjectVLA(G, sele);
   n_obj = VLAGetSize(objVLA);
   if(n_obj) {
@@ -5880,17 +5901,6 @@ int ExecutiveSetSymmetry(PyMOLGlobals * G, char *sele, int state, float a, float
       obj = objVLA[i];
       switch (obj->type) {
       case cObjectMolecule:
-        if(!symmetry) {
-          symmetry = SymmetryNew(G);
-          symmetry->Crystal->Dim[0] = a;
-          symmetry->Crystal->Dim[1] = b;
-          symmetry->Crystal->Dim[2] = c;
-          symmetry->Crystal->Angle[0] = alpha;
-          symmetry->Crystal->Angle[1] = beta;
-          symmetry->Crystal->Angle[2] = gamma;
-          UtilNCopy(symmetry->SpaceGroup, sgroup, sizeof(WordType));
-          SymmetryAttemptGeneration(symmetry, false);
-        }
         objMol = (ObjectMolecule *) obj;
         if(symmetry) {
 	  /* right now, ObjectMolecules only have one-state symmetry information */
@@ -5905,17 +5915,6 @@ int ExecutiveSetSymmetry(PyMOLGlobals * G, char *sele, int state, float a, float
         }
         break;
       case cObjectMap:
-	/* create a new symmetry object for copying */
-	symmetry = SymmetryNew(G);
-	symmetry->Crystal->Dim[0] = a;
-	symmetry->Crystal->Dim[1] = b;
-	symmetry->Crystal->Dim[2] = c;
-	symmetry->Crystal->Angle[0] = alpha;
-	symmetry->Crystal->Angle[1] = beta;
-	symmetry->Crystal->Angle[2] = gamma;
-	UtilNCopy(symmetry->SpaceGroup, sgroup, sizeof(WordType));
-	SymmetryAttemptGeneration(symmetry, false);
-
 	objMap = (ObjectMap *) obj;
 	
 	if(symmetry) {
@@ -5952,11 +5951,10 @@ int ExecutiveSetSymmetry(PyMOLGlobals * G, char *sele, int state, float a, float
     PRINTFB(G, FB_Executive, FB_Errors)
       " ExecutiveSetSymmetry: no object selected\n" ENDFB(G);
   }
-  if(crystal)
-    CrystalFree(crystal);
   if(symmetry)
     SymmetryFree(symmetry);
   VLAFreeP(objVLA);
+th_except1:
   return (ok);
 }
 
@@ -6359,7 +6357,7 @@ int ***ExecutiveGetBondPrint(PyMOLGlobals * G, char *name, int max_bond, int max
 #define cMapOperatorCopy     5
 #define cMapOperatorUnique   6
 
-int ExecutiveMapSet(PyMOLGlobals * G, char *name, int operator, char *operands,
+int ExecutiveMapSet(PyMOLGlobals * G, char *name, int operator_, char *operands,
                     int target_state, int source_state, int zoom, int quiet)
 {
   CExecutive *I = G->Executive;
@@ -6448,7 +6446,7 @@ int ExecutiveMapSet(PyMOLGlobals * G, char *name, int operator, char *operands,
     if(!target) {               /* target map doesn't exist... */
       int need_union_geometry = false;
       int need_first_geometry = false;
-      switch (operator) {
+      switch (operator_) {
       case cMapOperatorSum:
       case cMapOperatorAverage:
       case cMapOperatorMinimum:
@@ -6599,7 +6597,7 @@ int ExecutiveMapSet(PyMOLGlobals * G, char *name, int operator, char *operands,
                   register int *flg = inside;
                   register int *pre = present;
 
-                  switch (operator) {
+                  switch (operator_) {
                   case cMapOperatorCopy:
                     for(a = 0; a < n_pnt; a++) {
                       if(flg) {
@@ -6722,7 +6720,7 @@ int ExecutiveMapSet(PyMOLGlobals * G, char *name, int operator, char *operands,
           register float *lv = l_value;
           register int *pre = present;
 
-          switch (operator) {
+          switch (operator_) {
           case cMapOperatorUnique:
             lv = l_value;
             for(a = 0; a < n_pnt; a++) {
@@ -13106,6 +13104,9 @@ static SpecRec *ExecutiveFindSpec(PyMOLGlobals * G, char *name)
 {
   register CExecutive *I = G->Executive;
   SpecRec *rec = NULL;
+  // ignore % prefix
+  if(name[0] && name[0] == '%')
+    name++;
   {                             /* first, try for perfect, case-specific match */
     OVreturn_word result;
     if(OVreturn_IS_OK((result = OVLexicon_BorrowFromCString(I->Lex, name)))) {
@@ -13598,7 +13599,6 @@ int ExecutiveWindowZoom(PyMOLGlobals * G, char *name, float buffer,
     " ExecutiveWindowZoom-DEBUG: entered\n" ENDFD;
   if(ExecutiveGetExtent(G, name, mn, mx, true, state, true)) {
     if(buffer != 0.0F) {
-      buffer = buffer;
       mx[0] += buffer;
       mx[1] += buffer;
       mx[2] += buffer;
@@ -15250,46 +15250,56 @@ static int ExecutiveClick(Block * block, int button, int x, int y, int mod)
             if(t < op_cnt) {
               int my = I->Block->rect.top - (ExecTopMargin + n * ExecLineHeight) - 3;
               int mx = I->Block->rect.right - (ExecRightMargin + t * ExecToggleWidth);
+
+#if 0
+              // prefix name with % as guarantee to not match a selection keyword
+              WordType namesele = "%";
+              UtilNCopy(namesele + 1, (rec->type == cExecObject) ?
+                  rec->obj->Name : rec->name, WordLength - 1);
+#else
+              char *namesele = (rec->type == cExecObject) ? rec->obj->Name : rec->name;
+#endif
+
               t = (op_cnt - t) - 1;
               switch (t) {
               case 0:          /* action */
                 switch (rec->type) {
                 case cExecAll:
-                  MenuActivate(G, mx, my, x, y, false, "all_action", rec->name);
+                  MenuActivate(G, mx, my, x, y, false, "all_action", namesele);
                   break;
                 case cExecSelection:
-                  MenuActivate(G, mx, my, x, y, false, "sele_action", rec->name);
+                  MenuActivate(G, mx, my, x, y, false, "sele_action", namesele);
                   break;
                 case cExecObject:
                   switch (rec->obj->type) {
                   case cObjectGroup:
-                    MenuActivate(G, mx, my, x, y, false, "group_action", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "group_action", namesele);
                     break;
                   case cObjectMolecule:
-                    MenuActivate(G, mx, my, x, y, false, "mol_action", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "mol_action", namesele);
                     break;
                   case cObjectMap:
-                    MenuActivate(G, mx, my, x, y, false, "map_action", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "map_action", namesele);
                     break;
                   case cObjectSurface:
                     MenuActivate(G, mx, my, x, y, false, "surface_action",
-                                 rec->obj->Name);
+                                 namesele);
                     break;
                   case cObjectMesh:
-                    MenuActivate(G, mx, my, x, y, false, "mesh_action", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "mesh_action", namesele);
                     break;
                   case cObjectMeasurement:
                   case cObjectCGO:
                   case cObjectCallback:
                   case cObjectAlignment:
 		  case cObjectVolume:
-                    MenuActivate(G, mx, my, x, y, false, "simple_action", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "simple_action", namesele);
                     break;
                   case cObjectSlice:
-                    MenuActivate(G, mx, my, x, y, false, "slice_action", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "slice_action", namesele);
                     break;
                   case cObjectGadget:
-                    MenuActivate(G, mx, my, x, y, false, "ramp_action", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "ramp_action", namesele);
                     break;
                   }
                   break;
@@ -15301,36 +15311,36 @@ static int ExecutiveClick(Block * block, int button, int x, int y, int mod)
                   MenuActivate(G, mx, my, x, y, false, "mol_show", cKeywordAll);
                   break;
                 case cExecSelection:
-                  MenuActivate(G, mx, my, x, y, false, "mol_show", rec->name);
+                  MenuActivate(G, mx, my, x, y, false, "mol_show", namesele);
                   break;
                 case cExecObject:
                   switch (rec->obj->type) {
                   case cObjectGroup:
                   case cObjectMolecule:
-                    MenuActivate(G, mx, my, x, y, false, "mol_show", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "mol_show", namesele);
                     break;
                   case cObjectCGO:
                   case cObjectAlignment:
-                    MenuActivate(G, mx, my, x, y, false, "cgo_show", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "cgo_show", namesele);
                     break;
                   case cObjectMeasurement:
                     MenuActivate(G, mx, my, x, y, false, "measurement_show",
-                                 rec->obj->Name);
+                                 namesele);
                     break;
                   case cObjectMap:
-                    MenuActivate(G, mx, my, x, y, false, "map_show", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "map_show", namesele);
                     break;
                   case cObjectMesh:
-                    MenuActivate(G, mx, my, x, y, false, "mesh_show", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "mesh_show", namesele);
                     break;
                   case cObjectSurface:
-                    MenuActivate(G, mx, my, x, y, false, "surface_show", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "surface_show", namesele);
                     break;
                   case cObjectSlice:
-                    MenuActivate(G, mx, my, x, y, false, "slice_show", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "slice_show", namesele);
                     break;
 		  case cObjectVolume:
-                    MenuActivate(G, mx, my, x, y, false, "volume_show", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "volume_show", namesele);
                     break;
 
                   }
@@ -15343,36 +15353,36 @@ static int ExecutiveClick(Block * block, int button, int x, int y, int mod)
                   MenuActivate(G, mx, my, x, y, false, "mol_hide", cKeywordAll);
                   break;
                 case cExecSelection:
-                  MenuActivate(G, mx, my, x, y, false, "mol_hide", rec->name);
+                  MenuActivate(G, mx, my, x, y, false, "mol_hide", namesele);
                   break;
                 case cExecObject:
                   switch (rec->obj->type) {
                   case cObjectGroup:
                   case cObjectMolecule:
-                    MenuActivate(G, mx, my, x, y, false, "mol_hide", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "mol_hide", namesele);
                     break;
                   case cObjectCGO:
                   case cObjectAlignment:
-                    MenuActivate(G, mx, my, x, y, false, "cgo_hide", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "cgo_hide", namesele);
                     break;
                   case cObjectMeasurement:
                     MenuActivate(G, mx, my, x, y, false, "measurement_hide",
-                                 rec->obj->Name);
+                                 namesele);
                     break;
                   case cObjectMap:
-                    MenuActivate(G, mx, my, x, y, false, "map_hide", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "map_hide", namesele);
                     break;
                   case cObjectMesh:
-                    MenuActivate(G, mx, my, x, y, false, "mesh_hide", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "mesh_hide", namesele);
                     break;
                   case cObjectSurface:
-                    MenuActivate(G, mx, my, x, y, false, "surface_hide", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "surface_hide", namesele);
                     break;
                   case cObjectSlice:
-                    MenuActivate(G, mx, my, x, y, false, "slice_hide", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "slice_hide", namesele);
                     break;
 		  case cObjectVolume:
-                    MenuActivate(G, mx, my, x, y, false, "volume_hide", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "volume_hide", namesele);
                     break;
 		    
 
@@ -15386,13 +15396,13 @@ static int ExecutiveClick(Block * block, int button, int x, int y, int mod)
                   MenuActivate(G, mx, my, x, y, false, "mol_labels", "(all)");
                   break;
                 case cExecSelection:
-                  MenuActivate(G, mx, my, x, y, false, "mol_labels", rec->name);
+                  MenuActivate(G, mx, my, x, y, false, "mol_labels", namesele);
                   break;
                 case cExecObject:
                   switch (rec->obj->type) {
                   case cObjectGroup:
                   case cObjectMolecule:
-                    MenuActivate(G, mx, my, x, y, false, "mol_labels", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "mol_labels", namesele);
                     break;
                   case cObjectMeasurement:
                     break;
@@ -15409,29 +15419,29 @@ static int ExecutiveClick(Block * block, int button, int x, int y, int mod)
                 switch (rec->type) {
                 case cExecAll:
                 case cExecSelection:
-                  MenuActivate(G, mx, my, x, y, false, "mol_color", rec->name);
+                  MenuActivate(G, mx, my, x, y, false, "mol_color", namesele);
                   break;
                 case cExecObject:
                   switch (rec->obj->type) {
                   case cObjectGroup:
                   case cObjectMolecule:
-                    MenuActivate(G, mx, my, x, y, false, "mol_color", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "mol_color", namesele);
                     break;
                   case cObjectMap:
                   case cObjectSurface:
                   case cObjectCGO:
                   case cObjectMesh:
-                    MenuActivate(G, mx, my, x, y, false, "general_color", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "general_color", namesele);
                     break;
                   case cObjectMeasurement:
-                    MenuActivate(G, mx, my, x, y, false, "measurement_color", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "measurement_color", namesele);
                     break;
                   case cObjectSlice:
-                    MenuActivate(G, mx, my, x, y, false, "slice_color", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "slice_color", namesele);
                     break;
                   case cObjectVolume:
 		    /* TODO: Create better automated coloring for volumes */
-                    MenuActivate(G, mx, my, x, y, false, "general_color", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "general_color", namesele);
                     break;
                   }
                   break;
@@ -15453,7 +15463,7 @@ static int ExecutiveClick(Block * block, int button, int x, int y, int mod)
 		  case cObjectSurface:
 		  case cObjectCGO:
 		  case cObjectMesh:
-                    MenuActivate(G, mx, my, x, y, false, "obj_motion", rec->obj->Name);
+                    MenuActivate(G, mx, my, x, y, false, "obj_motion", namesele);
                     break;
                   }
                   break;
@@ -15516,7 +15526,7 @@ static int ExecutiveClick(Block * block, int button, int x, int y, int mod)
                       ExecutiveSetObjVisib(G, cKeywordAll, false, false);       
                       /* need to log this */
                       if(!rec->visible)
-                        ExecutiveSpecSetVisibility(G, rec, true, 0, false);
+                        ExecutiveSpecSetVisibility(G, rec, true, 0, true);
                     }
                   } else {
                     I->ToggleMode = 4;
@@ -16743,6 +16753,7 @@ int ExecutiveReinitialize(PyMOLGlobals * G, int what, char *pattern)
       }
       break; 
     }
+    SceneUpdateStereo(G);
   } else {
     {
       CTracker *I_Tracker = I->Tracker;

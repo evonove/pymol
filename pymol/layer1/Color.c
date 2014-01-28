@@ -267,6 +267,7 @@ void ColorRegisterExt(PyMOLGlobals * G, char *name, void *ptr, int type)
     {
       OVreturn_word result = OVLexicon_GetFromCString(I->Lex, name);
       if(OVreturn_IS_OK(result)) {
+        OVOneToOne_Set(I->Idx, result.word, cColorExtCutoff - a);
         I->Ext[a].Name = result.word;
       } else {
         I->Ext[a].Name = 0;
@@ -290,6 +291,7 @@ void ColorForgetExt(PyMOLGlobals * G, char *name)
       OVLexicon_DecRef(I->Lex, I->Ext[a].Name);
       OVOneToOne_DelForward(I->Idx, I->Ext[a].Name);
     }
+    I->Ext[a].Name = 0;
     I->Ext[a].Ptr = NULL;
   }
 }
@@ -447,7 +449,7 @@ int ColorExtFromPyList(PyMOLGlobals * G, PyObject * list, int partial_restore)
         OVreturn_word result;
         ok = PConvPyStrToStr(PyList_GetItem(rec, 0), name, sizeof(WordType));
         if(OVreturn_IS_OK(result = OVLexicon_GetFromCString(I->Lex, name))) {
-          OVOneToOne_Set(I->Idx, result.word, a);
+          OVOneToOne_Set(I->Idx, result.word, cColorExtCutoff - a);
           ext->Name = result.word;
         } else {
           ext->Name = 0;
@@ -682,6 +684,8 @@ int ColorGetIndex(PyMOLGlobals * G, char *name)
         return cColorBack;
       else if(i == -1)
         return -1;
+      if (i & cColor_TRGB_Bits)
+        return i;
     }
   }
   if((name[0] == '0') && (name[1] == 'x')) {    /* explicit hex RGB 0x000000 */
@@ -732,9 +736,9 @@ int ColorGetIndex(PyMOLGlobals * G, char *name)
       }
     }
     if(best || (color < 0)) {
-      ext_color = ColorFindExtByName(G, name, false, &ext_best);
+      ext_color = ColorFindExtByName(G, name, true, &ext_best);
       if(ext_color >= 0) {
-        ext_color = -10 - ext_color;    /* indicates external */
+        ext_color = cColorExtCutoff - ext_color;    /* indicates external */
         if((!ext_best) || (ext_best > best))    /* perfect or better match? */
           color = ext_color;
       }
@@ -761,9 +765,9 @@ char *ColorGetName(PyMOLGlobals * G, int index)
     index = (((index & 0xFFFFFF) | ((index << 2) & 0xFC000000) |        /* convert 6 bits of trans into 8 */
               ((index >> 4) & 0x03000000)));
     if(index & 0xFF000000)      /* if transparent */
-      sprintf(I->RGBName, "%08x", index);
+      sprintf(I->RGBName, "0x%08x", index);
     else                        /* else */
-      sprintf(I->RGBName, "%06x", index);
+      sprintf(I->RGBName, "0x%06x", index);
     return I->RGBName;
   } else if(index <= cColorExtCutoff) {
     int a = cColorExtCutoff - index;
@@ -2918,8 +2922,8 @@ int ColorInit(PyMOLGlobals * G)
     testPtr = (unsigned char *) &test;
     I->BigEndian = (*testPtr) && 1;
 
-    I->Color = VLAMalloc(5500, sizeof(ColorRec), 5, true);
-    I->Ext = VLAMalloc(2, sizeof(ExtRec), 5, true);
+    I->Color = VLACalloc(ColorRec, 5500);
+    I->Ext = VLACalloc(ExtRec, 2);
     I->Gamma = 1.0F;
 
     ColorReset(G);              /* will alloc I->Idx and I->Lex */

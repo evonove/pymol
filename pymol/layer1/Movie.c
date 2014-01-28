@@ -38,6 +38,7 @@ Z* -------------------------------------------------------------------
 #include"ScrollBar.h"
 #include"Menu.h"
 #include"View.h"
+#include"Seq.h"
 
 #define cMovieDragModeMoveKey   1
 #define cMovieDragModeInsDel    2
@@ -907,6 +908,15 @@ int MoviePNG(PyMOLGlobals * G, char *prefix, int save, int start,
   M->format = format;
   M->mode = mode;
   M->quiet = quiet;
+
+  if(SettingGetGlobal_b(G, cSetting_seq_view)) {
+    PRINTFB(G, FB_Movie, FB_Warnings)
+      " MoviePNG-Warning: disabling seq_view, may conflict with movie export\n" ENDFB(G);
+    SettingSetGlobal_b(G, cSetting_seq_view, 0);
+    // force viewport update
+    SeqChanged(G);
+    OrthoDoDraw(G, 0);
+  }
 
   if(modal < 0) {
     /* default behavior is to go modal unless we're ray tracing */
@@ -1968,7 +1978,7 @@ int MovieInit(PyMOLGlobals * G)
     OrthoAttach(G, I->Block, cOrthoTool);
 
     I->Playing = false;
-    I->Image = VLAMalloc(10, sizeof(ImageType), 5, true);       /* auto-zero */
+    I->Image = VLACalloc(ImageType *, 10);       /* auto-zero */
     I->Sequence = NULL;
     I->Cmd = NULL;
     I->ViewElem = NULL;

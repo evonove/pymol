@@ -47,6 +47,18 @@ def CCompiler_compile(self, sources, output_dir=None, macros=None,
     pmap(_single_compile, objects)
     return objects
 
+# handle extra arguments
+class options:
+    osx_frameworks = False
+
+try:
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--osx-frameworks', action="store_true")
+    options, sys.argv[1:] = parser.parse_known_args(namespace=options)
+except ImportError:
+    print "argparse not available"
+
 jobs = int(os.getenv('JOBS', 0))
 pmap = map if jobs == 1 else multiprocessing.pool.ThreadPool(jobs or None).map
 
@@ -140,11 +152,7 @@ class install_pymol(install):
 generated_dir = os.path.join(os.environ.get("PYMOL_BLD", "build"), "generated")
 
 import create_shadertext
-create_shadertext.create_shadertext(
-        "data/shaders",
-        "shadertext.txt",
-        generated_dir + "/ShaderText.h",
-        generated_dir + "/ShaderText.c")
+create_shadertext.create_all(generated_dir)
 
 pymol_src_dirs = [
     "ov/src",
@@ -245,11 +253,16 @@ else: # unix style (linux, mac, ...)
         inc_dirs += filter(os.path.isdir, [prefix + s for s in ["/include", "/include/freetype2"]])
         lib_dirs += filter(os.path.isdir, [prefix + s for s in ["/lib64", "/lib"]])
 
-    glut = posix_find_lib(['glut', 'freeglut'], lib_dirs)
+    if sys.platform == 'darwin' and options.osx_frameworks:
+        ext_link_args += [
+            "-framework", "OpenGL",
+            "-framework", "GLUT",
+        ]
+    else:
+        glut = posix_find_lib(['glut', 'freeglut'], lib_dirs)
+        pyogl_libs += ["GL", "GLU", glut]
 
     libs += ["GLEW"]
-    pyogl_libs += ["GL", "GLU", glut]
-
     libs += pyogl_libs
 
     ext_comp_args += ["-ffast-math", "-funroll-loops", "-O3", "-fcommon"]
@@ -308,13 +321,5 @@ distribution = setup ( # Distribution meta-data
             get_sources(['contrib/champ']),
             include_dirs=["contrib/champ"],
         ),
-
-        pyogl_extension("pymol.opengl.glu._glu_num", ["contrib/pyopengl/_glu_nummodule.c"]),
-        pyogl_extension("pymol.opengl.glu._glu", ["contrib/pyopengl/_glumodule.c"]),
-        pyogl_extension("pymol.opengl.glut._glut", ["contrib/pyopengl/_glutmodule.c"]),
-        pyogl_extension("pymol.opengl.gl._opengl_num", ["contrib/pyopengl/_opengl_nummodule.c"]),
-        pyogl_extension("pymol.opengl.gl._opengl", ["contrib/pyopengl/_openglmodule.c"]),
-        pyogl_extension("pymol.opengl.gl.openglutil", ["contrib/pyopengl/openglutil.c"]),
-        pyogl_extension("pymol.opengl.gl.openglutil_num", ["contrib/pyopengl/openglutil_num.c"]),
     ],
 )

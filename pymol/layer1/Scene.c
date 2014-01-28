@@ -61,6 +61,18 @@ Z* -------------------------------------------------------------------
 #include "IncentiveCopyToClipboard.h"
 #endif
 
+void glReadBufferError(PyMOLGlobals *G, GLenum b, GLenum e){
+  PRINTFB(G, FB_OpenGL, FB_Warnings)
+    " WARNING: glReadBuffer caused GL error 0x%04x\n", e ENDFB(G);
+}
+// TH 2013-11-01: glReadBuffer fails in JyMOL when picking, OSX 10.9, Intel Graphics
+// for minor cases (i.e., png is called) this might get called outside of the main
+// thread (from ExecutiveDrawNow()) in this case, just don't call glReadBuffer for 
+// now, it should be ok because i believe it is used to figure out the size of the
+// 3D window (using SceneImagePrepareImpl) in situations where the size gets changed.
+#define glReadBuffer(b) {   int e; if (PIsGlutThread()) glReadBuffer(b);	\
+    if((e = glGetError())) glReadBufferError(G, b, e); }
+
 #ifdef _PYMOL_SHARP3D
 #define cSliceMin 0.1F
 #else
@@ -1880,7 +1892,6 @@ static unsigned char *SceneImagePrepare(PyMOLGlobals * G, int prior_only)
 {
   register CScene *I = G->Scene;
   unsigned char *image = NULL;
-  int reset_alpha = false;
   int save_stereo = (I->StereoMode == 1);
   int ok = true;
 
@@ -1890,9 +1901,9 @@ static unsigned char *SceneImagePrepare(PyMOLGlobals * G, int prior_only)
 
       buffer_size = 4 * I->Width * I->Height;
       if(save_stereo)
-        image = (GLvoid *) Alloc(char, buffer_size * 2);
+        image = Alloc(unsigned char, buffer_size * 2);
       else
-        image = (GLvoid *) Alloc(char, buffer_size);
+        image = Alloc(unsigned char, buffer_size);
       CHECKOK(ok, image);
       if (!ok)
 	return NULL;
@@ -1908,9 +1919,9 @@ static unsigned char *SceneImagePrepare(PyMOLGlobals * G, int prior_only)
         PyMOLReadPixels(I->Block->rect.left, I->Block->rect.bottom, I->Width, I->Height,
                         GL_RGBA, GL_UNSIGNED_BYTE, (GLvoid *) (image + buffer_size));
       }
-      reset_alpha = true;
       ScenePurgeImage(G);
       I->Image = Calloc(ImageType, 1);
+      I->Image->needs_alpha_reset = true;
       I->Image->data = image;
       I->Image->height = I->Height;
       I->Image->width = I->Width;
@@ -1920,37 +1931,20 @@ static unsigned char *SceneImagePrepare(PyMOLGlobals * G, int prior_only)
     }
   } else if(I->Image) {
     image = I->Image->data;
-    reset_alpha = I->Image->needs_alpha_reset;
   }
   if(image) {
     int opaque_back = SettingGetGlobal_b(G, cSetting_opaque_background);
-    if(opaque_back && reset_alpha) {
-      unsigned char *p = (unsigned char *) image;
-      int x, y;
-      int width = I->Image->width;
-      int height = I->Image->height;
-      if(I->Image && (I->Image->data == (unsigned char *) image))
-        I->Image->needs_alpha_reset = false;
-      for(y = 0; y < height; y++) {
-        for(x = 0; x < width; x++) {
-          p[3] = 0xFF;
-          p += 4;
-        }
-      }
-      if(save_stereo) {
-        for(y = 0; y < height; y++) {
-          for(x = 0; x < width; x++) {
-            p[3] = 0xFF;
-            p += 4;
-          }
-        }
-      }
+    if(opaque_back && I->Image->needs_alpha_reset) {
+      int i, s = 4 * I->Image->width * I->Image->height;
+      for(i = 3; i < s; i += 4)
+        image[i] = 0xFF;
+      I->Image->needs_alpha_reset = false;
     }
   }
   return (unsigned char *) image;
 }
 
-static void SceneImageFinish(PyMOLGlobals * G, char *image)
+static void SceneImageFinish(PyMOLGlobals * G, GLvoid *image)
 {
   register CScene *I = G->Scene;
   if(I->Image) {
@@ -2128,7 +2122,7 @@ int ScenePNG(PyMOLGlobals * G, char *png, float dpi, int quiet,
   if(image && I->Image) {
     int width = I->Image->width;
     int height = I->Image->height;
-    unsigned char *save_image = image;
+    unsigned char *save_image = (unsigned char*) image;
 
     if((image == I->Image->data) && I->Image->stereo) {
       width = I->Image->width;
@@ -4846,21 +4840,20 @@ float SceneGetScreenVertexScale(PyMOLGlobals * G, float *v1)
   float fov = SettingGetGlobal_f(G, cSetting_field_of_view);
   float modelView[16];
 
-  if(!v1)
-    v1 = I->Origin;
-  identity44f(modelView);
-  MatrixTranslateC44f(modelView, I->Pos[0], I->Pos[1], I->Pos[2]);
-  MatrixMultiplyC44f(I->RotMatrix, modelView);
-  MatrixTranslateC44f(modelView, -I->Origin[0], -I->Origin[1], -I->Origin[2]);
-
-  MatrixTransformC44f3f(modelView, v1, vt);
   if(SettingGetGlobal_i(G, cSetting_ortho)) {
-    ratio = 2 * (float) (fabs(I->Pos[2]) * tan((fov / 2.0) * cPI / 180.0)) / (I->Height);
+    vt[2] = I->Pos[2];
   } else {
-    float front_size =
-      2 * I->FrontSafe * ((float) tan((fov / 2.0F) * PI / 180.0F)) / (I->Height);
-    ratio = fabs(front_size * (-vt[2] / I->FrontSafe));
+    if(!v1)
+      v1 = I->Origin;
+    identity44f(modelView);
+    MatrixTranslateC44f(modelView, I->Pos[0], I->Pos[1], I->Pos[2]);
+    MatrixMultiplyC44f(I->RotMatrix, modelView);
+    MatrixTranslateC44f(modelView, -I->Origin[0], -I->Origin[1], -I->Origin[2]);
+
+    MatrixTransformC44f3f(modelView, v1, vt);
   }
+  // FIXME: max(0.0, ...) instead of abs(...) would make more sense
+  ratio = fabs(2.0 * -vt[2] * tanf(fov * PI / 360.0) / I->Height);
   return ratio;
 }
 
@@ -4950,7 +4943,7 @@ void SceneRovingUpdate(PyMOLGlobals * G)
   float sticks, lines, spheres, labels, ribbon, cartoon;
   float polar_contacts, polar_cutoff, nonbonded, nb_spheres;
   char byres[10] = "byres";
-  char not[4] = "not";
+  char not_[4] = "not";
   char empty[1] = "";
   char *p1;
   char *p2;
@@ -4988,7 +4981,7 @@ void SceneRovingUpdate(PyMOLGlobals * G)
 
     if(sticks != 0.0F) {
       if(sticks < 0.0F) {
-        p1 = not;
+        p1 = not_;
         sticks = (float) fabs(sticks);
       } else {
         p1 = empty;
@@ -5003,7 +4996,7 @@ void SceneRovingUpdate(PyMOLGlobals * G)
 
     if(lines != 0.0F) {
       if(lines < 0.0F) {
-        p1 = not;
+        p1 = not_;
         lines = (float) fabs(lines);
       } else {
         p1 = empty;
@@ -5018,7 +5011,7 @@ void SceneRovingUpdate(PyMOLGlobals * G)
 
     if(labels != 0.0F) {
       if(labels < 0.0F) {
-        p1 = not;
+        p1 = not_;
         labels = (float) fabs(labels);
       } else {
         p1 = empty;
@@ -5033,7 +5026,7 @@ void SceneRovingUpdate(PyMOLGlobals * G)
 
     if(spheres != 0.0F) {
       if(spheres < 0.0F) {
-        p1 = not;
+        p1 = not_;
         spheres = (float) fabs(spheres);
       } else {
         p1 = empty;
@@ -5048,7 +5041,7 @@ void SceneRovingUpdate(PyMOLGlobals * G)
 
     if(cartoon != 0.0F) {
       if(cartoon < 0.0F) {
-        p1 = not;
+        p1 = not_;
         cartoon = (float) fabs(cartoon);
       } else {
         p1 = empty;
@@ -5063,7 +5056,7 @@ void SceneRovingUpdate(PyMOLGlobals * G)
 
     if(ribbon != 0.0F) {
       if(ribbon < 0.0F) {
-        p1 = not;
+        p1 = not_;
         ribbon = (float) fabs(ribbon);
       } else {
         p1 = empty;
@@ -5080,7 +5073,7 @@ void SceneRovingUpdate(PyMOLGlobals * G)
     if(polar_contacts != 0.0F) {
       int label_flag = 0;
       if(polar_contacts < 0.0F) {
-        p1 = not;
+        p1 = not_;
         polar_contacts = (float) fabs(polar_contacts);
       } else {
         p1 = empty;
@@ -5100,7 +5093,7 @@ void SceneRovingUpdate(PyMOLGlobals * G)
 
     if(nonbonded != 0.0F) {
       if(nonbonded < 0.0F) {
-        p1 = not;
+        p1 = not_;
         nonbonded = (float) fabs(nonbonded);
       } else {
         p1 = empty;
@@ -5115,7 +5108,7 @@ void SceneRovingUpdate(PyMOLGlobals * G)
 
     if(nb_spheres != 0.0F) {
       if(nb_spheres < 0.0F) {
-        p1 = not;
+        p1 = not_;
         nb_spheres = (float) fabs(nb_spheres);
       } else {
         p1 = empty;
@@ -7069,7 +7062,7 @@ void SceneRay(PyMOLGlobals * G,
       case 0:                  /* mode 0 is built-in */
         {
           unsigned int buffer_size = 4 * ray_width * ray_height;
-          unsigned int *buffer = (GLvoid *) Alloc(char, buffer_size);
+          unsigned int *buffer = (unsigned int*) Alloc(unsigned char, buffer_size);
           unsigned int background;
           ErrChkPtr(G, buffer);
 
@@ -7087,7 +7080,7 @@ void SceneRay(PyMOLGlobals * G,
               I->Image = Calloc(ImageType, 1);
               if(I->Image) {
                 unsigned int tot_size = 4 * tot_width * tot_height;
-                I->Image->data = (GLvoid *) Alloc(char, tot_size);
+                I->Image->data = Alloc(unsigned char, tot_size);
                 I->Image->size = tot_size;
                 I->Image->width = tot_width;
                 I->Image->height = tot_height;
@@ -7506,7 +7499,7 @@ static void SceneCopy(PyMOLGlobals * G, GLenum buffer, int force, int entire_win
       buffer_size = 4 * w * h;
       if(buffer_size) {
         I->Image = Calloc(ImageType, 1);
-        I->Image->data = (GLvoid *) Alloc(char, buffer_size);
+        I->Image->data = Alloc(unsigned char, buffer_size);
         I->Image->size = buffer_size;
         I->Image->width = w;
         I->Image->height = h;
@@ -8672,7 +8665,9 @@ void InitializeViewPort(PyMOLGlobals * G, CScene *I, int x, int y, int oversize_
       *stereo_mode = 0;
       break;
     }
+#if 0 // this disables anaglyph stereo
     *stereo_using_mono_matrix = true;
+#endif
     *width_scale = ((float) (oversize_width)) / I->Width;
   } else {
     glViewport(I->Block->rect.left, I->Block->rect.bottom, I->Width, I->Height);
@@ -9912,4 +9907,8 @@ void SceneGLClear(PyMOLGlobals * G, GLbitfield mask){
 int SceneIsGridModeActive(PyMOLGlobals * G){
   register CScene *I = G->Scene;
   return I->grid.active;
+}
+
+int SceneGetCopyType(PyMOLGlobals * G) {
+  return G->Scene->CopyType;
 }

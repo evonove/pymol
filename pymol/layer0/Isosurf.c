@@ -177,10 +177,11 @@ Isofield *IsosurfNewFromPyList(PyMOLGlobals * G, PyObject * list)
   /* TO ENABLE BACKWARDS COMPATIBILITY...
      Always check ll when adding new PyList_GetItem's */
   if(ok)
-    ok = ((result = mmalloc(sizeof(Isofield))) != NULL);
+    ok = ((result = Alloc(Isofield, 1)) != NULL);
   if(ok) {
     result->data = NULL;
     result->points = NULL;
+    result->gradients = NULL;
   }
   if(ok)
     ok = PConvPyListToIntArrayInPlace(PyList_GetItem(list, 0), result->dimensions, 3);
@@ -208,7 +209,6 @@ Isofield *IsosurfNewFromPyList(PyMOLGlobals * G, PyObject * list)
       result = NULL;
     }
   }
-  result->gradients = NULL;
   return (result);
 #endif
 }
@@ -410,7 +410,7 @@ Isofield *IsosurfFieldAlloc(PyMOLGlobals * G, int *dims)
 
   /* Warning: ...FromPyList also allocs and inits from the heap */
 
-  result = mmalloc(sizeof(Isofield));
+  result = Alloc(Isofield, 1);
   ErrChkPtr(G, result);
   result->data = FieldNew(G, dims, 3, sizeof(float), cFieldFloat);
   ErrChkPtr(G, result->data);

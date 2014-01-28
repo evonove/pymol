@@ -695,72 +695,69 @@ int SettingSetGlobalsFromPyList(PyMOLGlobals * G, PyObject * list)
   return 0;
 #else
   int ok = true;
+  int i;
 
-  int session_migration = SettingGetGlobal_b(G, cSetting_session_migration);
-  int session_version_check = SettingGetGlobal_b(G, cSetting_session_version_check);
   int full_screen = SettingGetGlobal_b(G, cSetting_full_screen);
   int internal_gui = SettingGetGlobal_b(G, cSetting_internal_gui);
   int internal_feedback = SettingGetGlobal_b(G, cSetting_internal_feedback);
-
-  int stereo = SettingGetGlobal_b(G, cSetting_stereo);
-  int text = SettingGetGlobal_b(G, cSetting_text);
-  int use_display_lists = SettingGetGlobal_b(G, cSetting_use_display_lists);
-  int max_threads = SettingGetGlobal_i(G, cSetting_max_threads);
-  int nvidia_bugs = SettingGetGlobal_b(G, cSetting_nvidia_bugs);
-  int ati_bugs = SettingGetGlobal_b(G, cSetting_ati_bugs);
-  int stereo_mode = SettingGetGlobal_i(G, cSetting_stereo_mode);
-  int stereo_double_pump_mono = SettingGetGlobal_b(G, cSetting_stereo_double_pump_mono);
-  int show_progress = SettingGetGlobal_b(G, cSetting_show_progress);
-  int defer_updates = SettingGetGlobal_b(G, cSetting_defer_updates);
-  int suspend_updates = SettingGetGlobal_b(G, cSetting_suspend_updates);
-  int suspend_undo = SettingGetGlobal_b(G, cSetting_suspend_undo);
-  int suspend_undo_atom_count = SettingGetGlobal_i(G, cSetting_suspend_undo_atom_count);
-  int suspend_deferred = SettingGetGlobal_i(G, cSetting_suspend_deferred);
-  int cache_max = SettingGetGlobal_i(G, cSetting_cache_max);
-  int logging = SettingGetGlobal_i(G, cSetting_logging);
-  float no_idle = SettingGetGlobal_f(G, cSetting_no_idle);
-  float slow_idle = SettingGetGlobal_f(G, cSetting_fast_idle);
-  float fast_idle = SettingGetGlobal_f(G, cSetting_slow_idle);
-  int mouse_grid = SettingGetGlobal_b(G, cSetting_mouse_grid);
-  int mouse_z_scale = SettingGetGlobal_i(G,cSetting_mouse_scale);
   register CSetting *I = G->Setting;
+
+  int values_keep_i[30];
+  int settings_keep_i[] = {
+    cSetting_session_migration,
+    cSetting_session_version_check,
+    cSetting_stereo,
+    cSetting_text,
+    cSetting_use_display_lists,
+    cSetting_max_threads,
+    cSetting_nvidia_bugs,
+    cSetting_ati_bugs,
+    cSetting_stereo_mode,
+    cSetting_stereo_double_pump_mono,
+    cSetting_show_progress,
+    cSetting_defer_updates,
+    cSetting_suspend_updates,
+    cSetting_suspend_undo,
+    cSetting_suspend_undo_atom_count,
+    cSetting_suspend_deferred,
+    cSetting_cache_max,
+    cSetting_logging,
+    cSetting_mouse_grid,
+    cSetting_mouse_scale,
+    cSetting_cylinder_shader_ff_workaround,
+    // adjust the size of values_keep_i when adding items
+    0
+  };
+
+  float values_keep_f[10];
+  int settings_keep_f[] = {
+    cSetting_no_idle,
+    cSetting_fast_idle,
+    cSetting_slow_idle,
+    // adjust the size of values_keep_f when adding items
+    0
+  };
+
+  for (i = 0; settings_keep_i[i]; i++)
+    values_keep_i[i] = SettingGetGlobal_i(G, settings_keep_i[i]);
+
+  for (i = 0; settings_keep_f[i]; i++)
+    values_keep_f[i] = SettingGetGlobal_f(G, settings_keep_f[i]);
 
   if(list)
     if(PyList_Check(list))
       ok = SettingFromPyList(I, list);
 
   SettingSet_i(I, cSetting_security, G->Security);      /* always override Security setting with global variable */
-  SettingSet_b(I, cSetting_session_migration, session_migration);       /* preserve current migration info */
-  SettingSet_b(I, cSetting_session_version_check, session_version_check);
 
   /* restore the following settings  */
 
-  SettingSetGlobal_f(G, cSetting_no_idle, no_idle);
-  SettingSetGlobal_f(G, cSetting_fast_idle, fast_idle);
-  SettingSetGlobal_f(G, cSetting_slow_idle, slow_idle);
+  for (i = 0; settings_keep_i[i]; i++)
+    SettingSet_i(I, settings_keep_i[i], values_keep_i[i]);
 
-  SettingSet_b(I, cSetting_stereo, stereo);
-  SettingSet_b(I, cSetting_text, text);
-  SettingSet_b(I, cSetting_use_display_lists, use_display_lists);
-  SettingSet_i(I, cSetting_max_threads, max_threads);
-  SettingSet_i(I, cSetting_nvidia_bugs, nvidia_bugs);
-  SettingSet_i(I, cSetting_ati_bugs, ati_bugs);
-  SettingSet_i(I, cSetting_cache_max, cache_max);
-  SettingSet_i(I, cSetting_logging, logging);
+  for (i = 0; settings_keep_f[i]; i++)
+    SettingSet_f(I, settings_keep_f[i], values_keep_f[i]);
 
-  SettingSet_i(I, cSetting_stereo_mode, stereo_mode);
-  SettingSet_b(I, cSetting_stereo_double_pump_mono, stereo_double_pump_mono);
-  SettingSet_b(I, cSetting_full_screen, full_screen);
-  SettingSet_b(I, cSetting_show_progress, show_progress);
-  SettingSet_b(I, cSetting_defer_updates, defer_updates);
-  SettingSet_b(I, cSetting_suspend_updates, suspend_updates);
-  SettingSet_b(I, cSetting_suspend_undo, suspend_undo);
-  SettingSet_i(I, cSetting_suspend_undo_atom_count, suspend_undo_atom_count);
-  SettingSet_b(I, cSetting_suspend_deferred, suspend_deferred);
-  SettingSet_b(I, cSetting_session_changed, 0);
-
-  SettingSet_b(I, cSetting_mouse_grid, mouse_grid);
-  SettingSet_i(I, cSetting_mouse_z_scale, mouse_z_scale);
   if(G->Option->presentation) {
     SettingSet_b(I, cSetting_full_screen, full_screen);
     SettingSet_b(I, cSetting_presentation, 1);
@@ -918,6 +915,7 @@ static int set_list(CSetting * I, PyObject * list)
       case cSetting_stereo_double_pump_mono:
       case cSetting_max_threads:
       case cSetting_session_migration:
+      case cSetting_use_shaders:
         set_type = false;
         break;
       default:
@@ -1259,8 +1257,6 @@ int SettingStringToTypedValue(PyMOLGlobals * G, int index, char *st, int *type,
   case cSetting_color:
     {
       int color_index = ColorGetIndex(G, st);
-      if((color_index < 0) && (color_index > cColorExtCutoff))
-        color_index = 0;
       if (*(value) != color_index){
           *(value) = color_index;
       } else {
@@ -1502,7 +1498,7 @@ void SettingInit(PyMOLGlobals * G, CSetting * I)
   I->G = G;
   I->size = sizeof(int);        /* insures offset is never zero, except when undef */
   I->data = VLAlloc(char, 10);
-  I->info = VLAMalloc(cSetting_INIT, sizeof(SettingRec), 5, 1); /* auto-zero */
+  I->info = (SettingRec*) VLAMalloc(cSetting_INIT, sizeof(SettingRec), 5, 1); /* auto-zero */
 }
 
 
@@ -2377,6 +2373,10 @@ void SettingGenerateSideEffects(PyMOLGlobals * G, int index, char *sele, int sta
 	}
       }
       SceneInvalidate(G);
+      if (SettingGetGlobal_b(G, cSetting_sphere_use_shader)){
+	ExecutiveInvalidateRep(G, inv_sele, cRepSphere, cRepInvRep);
+	changed = 1;
+      }
       if (SettingGetGlobal_b(G, cSetting_ribbon_use_shader)){
 	ExecutiveInvalidateRep(G, inv_sele, cRepRibbon, cRepInvRep);
 	changed = 1;
@@ -2704,6 +2704,7 @@ void SettingGenerateSideEffects(PyMOLGlobals * G, int index, char *sele, int sta
 	SettingSet_i(G->Setting, cSetting_cgo_sphere_quality, (NUMBER_OF_SPHERE_LEVELS-1));
 	return ;
       }
+    }
   case cSetting_nb_spheres_quality:
     {
       int nb_spheres_quality = SettingGetGlobal_i(G, cSetting_nb_spheres_quality);
@@ -2730,6 +2731,7 @@ void SettingGenerateSideEffects(PyMOLGlobals * G, int index, char *sele, int sta
       SceneChanged(G);
     }
   case cSetting_cgo_debug:
+    {
       ExecutiveInvalidateRep(G, inv_sele, cRepCGO, cRepInvRep);
       SceneChanged(G);
       break;
@@ -3172,8 +3174,7 @@ void SettingGenerateSideEffects(PyMOLGlobals * G, int index, char *sele, int sta
       /* clamp this value */
       float *v = ColorGet(G, SettingGet_color(G, NULL, NULL, cSetting_bg_rgb));
       {
-	int bg_gradient = SettingGet_b(G, NULL, NULL, cSetting_bg_gradient);
-	if (!bg_gradient){
+	if(!OrthoBackgroundDataIsSet(G)) {
 	  ColorUpdateFront(G, v);
 	  ExecutiveInvalidateRep(G, inv_sele, cRepAll, cRepInvColor);
 	}
@@ -3283,7 +3284,7 @@ void SettingGenerateSideEffects(PyMOLGlobals * G, int index, char *sele, int sta
       char *lsetting;
       int i;
       setting = SettingGetGlobal_s(G, cSetting_atom_type_format);
-      lsetting = mmalloc(strlen(setting)+1);
+      lsetting = (char*) mmalloc(strlen(setting)+1);
       for (i=0; i<=strlen(setting); i++){
 	lsetting[i] = tolower(setting[i]);
       }
@@ -3339,6 +3340,32 @@ void SettingGenerateSideEffects(PyMOLGlobals * G, int index, char *sele, int sta
   case cSetting_selection_round_points:
     ExecutiveInvalidateSelectionIndicatorsCGO(G);
     break;
+  case cSetting_dash_transparency:
+  case cSetting_label_bg_color:
+  case cSetting_label_bg_outline:
+  case cSetting_label_bg_transparency:
+  case cSetting_label_connector:
+  case cSetting_label_connector_color:
+  case cSetting_label_connector_ext_length:
+  case cSetting_label_connector_mode:
+  case cSetting_label_connector_width:
+  case cSetting_label_multiline_justification:
+  case cSetting_label_multiline_spacing:
+  case cSetting_label_padding:
+  case cSetting_label_placement_offset:
+  case cSetting_label_relative_mode:
+  case cSetting_label_screen_point:
+  case cSetting_label_z_target:
+  case cSetting_load_atom_props_default:
+  case cSetting_load_object_props_default:
+  case cSetting_pdb_conect_nodup:
+  case cSetting_pick_labels:
+  case cSetting_ray_label_connector_flat:
+  case cSetting_session_embeds_data:
+  case cSetting_use_geometry_shaders:
+    PRINTFB(G, FB_Setting, FB_Warnings)
+      "Setting-Warning: not supported in open-source version of PyMOL\n"
+      ENDFB(G);
   default:
     break;
   }
@@ -3611,6 +3638,28 @@ void SettingInitGlobal(PyMOLGlobals * G, int alloc, int reset_gui, int use_defau
 
     set_f(I, cSetting_min_mesh_spacing, 0.6F);
 
+    set_b(I, cSetting_pdb_conect_nodup, 0);
+
+    set_f(I, cSetting_label_multiline_spacing, 1.2f);
+
+    set_f(I, cSetting_label_multiline_justification, 1.f);
+
+    set_3f(I, cSetting_label_padding, 0.2F, 0.2F, 0.0F);
+
+    set_f(I, cSetting_label_bg_transparency, .6f);
+
+    set_b(I, cSetting_label_bg_outline, 0);
+
+    set_b(I, cSetting_ray_label_connector_flat, 1);
+
+    set_f(I, cSetting_dash_transparency, 0.0f);
+
+    set_b(I, cSetting_session_embeds_data, 1);
+
+    set_i(I, cSetting_label_z_target, -1);
+
+    set_i(I, cSetting_pick_labels, 1);
+
     set_i(I, cSetting_dot_density, 2);
 
     set_i(I, cSetting_dot_mode, 0);
@@ -3780,8 +3829,6 @@ void SettingInitGlobal(PyMOLGlobals * G, int alloc, int reset_gui, int use_defau
     set_f(I, cSetting_selection_overlay, 1.0F);
 
     set_b(I, cSetting_static_singletons, 1);
-
-    set_i(I, cSetting_max_triangles, 1000000);  /* no longer used */
 
     set_b(I, cSetting_depth_cue, 1);
 
@@ -4510,7 +4557,7 @@ void SettingInitGlobal(PyMOLGlobals * G, int alloc, int reset_gui, int use_defau
     set_color(I, cSetting_seq_view_unaligned_color, "-1");
     set_s(I, cSetting_seq_view_fill_char, "-");
     set_color(I, cSetting_seq_view_fill_color, "104");  /* grey50 */
-    set_color(I, cSetting_seq_view_label_color, "white");       /* grey50 */
+    set_color(I, cSetting_seq_view_label_color, "front");       /* grey50 */
     set_f(I, cSetting_surface_carve_normal_cutoff, -1.0F);
     set_i(I, cSetting_trace_atoms_mode, 5);
     set_b(I, cSetting_session_changed, 0);
@@ -4616,7 +4663,7 @@ void SettingInitGlobal(PyMOLGlobals * G, int alloc, int reset_gui, int use_defau
     set_b(I, cSetting_movie_auto_store, -1);
     set_b(I, cSetting_movie_auto_interpolate, 1);
     set_i(I, cSetting_movie_panel_row_height, 15);
-    set_i(I, cSetting_movie_quality, 60);
+    set_i(I, cSetting_movie_quality, 90);
     set_i(I, cSetting_scene_frame_mode,-1);
     set_i(I, cSetting_surface_cavity_mode,0);
     set_f(I, cSetting_surface_cavity_radius, 7.0F);
@@ -4723,8 +4770,11 @@ void SettingInitGlobal(PyMOLGlobals * G, int alloc, int reset_gui, int use_defau
       set_b(I, cSetting_internal_gui, 1);
     }
     set_b(I, cSetting_render_as_cylinders, 1);
+
+    if(alloc) // don't set use_shaders on reinitialize
+      set_b(I, cSetting_use_shaders, 0);
+
 #ifdef _PYMOL_LIB
-    set_b(I, cSetting_use_shaders, 1);
     set_b(I, cSetting_stick_ball, true);
     set_b(I, cSetting_cgo_shader_ub_color, 1);
     set_b(I, cSetting_cgo_shader_ub_normal, 1);
@@ -4732,7 +4782,6 @@ void SettingInitGlobal(PyMOLGlobals * G, int alloc, int reset_gui, int use_defau
     set_i(I, cSetting_cgo_sphere_quality, 2);
     set_i(I, cSetting_sphere_mode, 9);
 #else
-    set_b(I, cSetting_use_shaders, 0);
     set_b(I, cSetting_stick_ball, false);
     set_b(I, cSetting_cgo_shader_ub_color, 0);
     set_b(I, cSetting_cgo_shader_ub_normal, 0);

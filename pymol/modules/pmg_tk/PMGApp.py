@@ -30,11 +30,31 @@ from tkFileDialog import *
 import tkMessageBox
 import Pmw
 
+try:
+    # monkey patch Pmw's error message box
+    def _reporterror(func, args):
+        import pymol
+
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+
+        if issubclass(exc_type, (pymol.CmdException, pymol.cmd.QuietException)):
+            tkMessageBox.showerror(getattr(exc_value, 'label', 'Error'), str(exc_value).strip())
+        else:
+            _reporterror.orig(func, args)
+
+    PmwBase = sys.modules[Pmw.MegaWidget.__module__]
+    _reporterror.orig = PmwBase._reporterror
+    PmwBase._reporterror = _reporterror
+
+    del PmwBase
+except Exception as e:
+    print 'monkey patching _reporterror failed:', e
+
 class PMGApp(Pmw.MegaWidget):
 
     def initOS(self):
          # Initialize platform-specific options
-         if sys.platform == 'mac':
+         if sys.platform == 'darwin':
              self.initializeTk_mac()
          elif sys.platform[:3] == 'win':
              self.initializeTk_win32()
@@ -49,11 +69,7 @@ class PMGApp(Pmw.MegaWidget):
                      'darwin': (0,51), 'cygwin' : (0,60),
                      'linux' : (0,31), 'linux2' : (0,31) }
 
-         if sys.platform in osFrame.keys():
-             (self.frameXAdjust,self.frameYAdjust) = osFrame[sys.platform]
-         else:
-             self.frameYAdjust = 51
-             self.frameXAdjust = 0
+         self.frameXAdjust, self.frameYAdjust = osFrame.get(sys.platform, (0, 51))
          
     def initializeTk_win32(self):
         self.root.option_add('*Font', 'Tahoma 8')
@@ -312,7 +328,13 @@ class PMGApp(Pmw.MegaWidget):
                 
             # define the size of the root window
             
-            self.root.geometry('%dx%d+%d+%d' % (
+            import platform
+            if sys.platform == 'darwin' and platform.mac_ver()[0] >= '10.9':
+                # let OS X Maverics place the window automatically, to avoid
+                # off-screen placement in multi-monitor setup
+                self.root.geometry('%dx%d' % (self.frameWidth, self.frameHeight))
+            else:
+                self.root.geometry('%dx%d+%d+%d' % (
                 self.frameWidth, self.frameHeight, self.frameXPos, self.frameYPos))
             
             # activate polling on the fifo

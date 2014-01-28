@@ -46,6 +46,7 @@ Z* -------------------------------------------------------------------
 #include "ShaderMgr.h"
 #include "Vector.h"
 #include "CGO.h"
+#include "MyPNG.h"
 
 #ifndef true
 #define true 1
@@ -121,7 +122,8 @@ struct _COrtho {
 
 int OrthoBackgroundDataIsSet(PyMOLGlobals *G){
   register COrtho *I = G->Ortho;
-  return (I->bgData != NULL && (I->bgWidth > 0 && I->bgHeight > 0));
+  return (I->bgData && (I->bgWidth > 0 && I->bgHeight > 0));
+  //  return (I->bgCGO != NULL && (I->bgWidth > 0 && I->bgHeight > 0));
 }
 void *OrthoBackgroundDataGet(PyMOLGlobals *G, int *width, int *height){
   register COrtho *I = G->Ortho;
@@ -201,6 +203,10 @@ void OrthoDrawBuffer(PyMOLGlobals * G, GLenum mode)
 #ifndef _PYMOL_GL_DRAWARRAYS
 	      /* NEED TODO FOR _PYMOL_GL_DRAWARRAYS */
     glDrawBuffer(mode);
+    if(glGetError()) {
+      PRINTFB(G, FB_OpenGL, FB_Warnings)
+        " WARNING: glDrawBuffer caused GL error\n" ENDFB(G);
+    }
 #endif
     I->ActiveGLBuffer = mode;
   }
@@ -1958,7 +1964,8 @@ void OrthoRenderCGO(PyMOLGlobals * G){
     SceneDrawImageOverlay(G, NULL);
     glDisable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
-    CGORenderGL(I->orthoCGO, NULL, NULL, NULL, NULL, NULL);
+    if (I->orthoCGO)
+      CGORenderGL(I->orthoCGO, NULL, NULL, NULL, NULL, NULL);
     if (I->orthoFastCGO)
       CGORenderGL(I->orthoFastCGO, NULL, NULL, NULL, NULL, NULL);
     CShaderPrg_Disable(CShaderPrg_Get_Current_Shader(G));

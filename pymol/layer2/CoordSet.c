@@ -278,7 +278,6 @@ int CoordSetMerge(ObjectMolecule *OM, CoordSet * I, CoordSet * cs)
     } else if(I->LabPos) {
       VLACheck(I->LabPos, LabPosType, nIndex);
     }
-    CHECKOK(ok, I->LabPos);
   }
   if (ok){
     if(cs->RefPos) {
@@ -292,7 +291,6 @@ int CoordSetMerge(ObjectMolecule *OM, CoordSet * I, CoordSet * cs)
     } else if(I->RefPos) {
       VLACheck(I->RefPos, RefPosType, nIndex);
     }
-    CHECKOK(ok, I->RefPos);
   }
   if(ok && I->fInvalidateRep)
     I->fInvalidateRep(I, cRepAll, cRepInvAll);
@@ -758,6 +756,7 @@ void CoordSetAtomToPDBStrVLA(PyMOLGlobals * G, char **charVLA, int *c,
   int rl;
   int literal = SettingGetGlobal_b(G, cSetting_pdb_literal_names);
   int reformat = SettingGetGlobal_i(G, cSetting_pdb_reformat_names_mode);
+  int ignore_pdb_segi = SettingGetGlobal_b(G, cSetting_ignore_pdb_segi);
   WordType x, y, z;
 
   formalCharge[0] = 0;
@@ -938,6 +937,7 @@ void CoordSetAtomToPDBStrVLA(PyMOLGlobals * G, char **charVLA, int *c,
       sprintf((*charVLA) + (*c),
               "%6s%5i %-4s%1s%-4s%1s%5s   %s%s%s%6.2f%6.2f      %-4s%2s%2s\n", aType,
               cnt + 1, name, ai->alt, resn, ai->chain, resi, x, y, z, ai->q, ai->b,
+              ignore_pdb_segi ? "" :
               ai->segi, ai->elem, formalCharge);
     if(ai->U11 || ai->U22 || ai->U33 || ai->U12 || ai->U13 || ai->U23) {
       // Warning: anisotropic temperature factors are not rotated with the object matrix

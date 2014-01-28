@@ -7,7 +7,7 @@ import re
 import string
 from cmd import Shortcut
 
-gz_ext_re = re.compile(r"\.(gz|bz2)$", re.I)
+gz_ext_re = re.compile(r"(\.?gz|\.bz2)$", re.I)
 
 file_ext_re = re.compile(string.join([
     "\.pdb$|\.pdb1$|\.ent$|\.mol$|\.p5m$|",
@@ -26,7 +26,7 @@ file_ext_re = re.compile(string.join([
     r"\.top$|", # AMBER Topology
     r"\.trj$|", # AMBER Trajectory
     r"\.crd$|", # AMBER coordinate file
-    r"\.rst$|", # AMBER restart
+    r"\.rst7?$|", # AMBER restart
     r"\.cex$|", # CEX format (used by metaphorics)
     r"\.phi$|", # PHI format (delphi)
     r"\.fld$|", # FLD format (AVS)
@@ -112,14 +112,20 @@ nt_hidden_path_re = re.compile(r"\$[\/\\]")
 quote_alpha_list_re = re.compile(
     r'''([\[\,]\s*)([a-zA-Z_][a-zA-Z0-9_\ ]*[a-zA-Z0-9_]*)(\s*[\,\]])''')
 
-def safe_list_eval(st):
-    return eval(sanitize_list_re.sub('',st)) 
-
 def safe_alpha_list_eval(st):
     st = sanitize_alpha_list_re.sub('',st)
     st = quote_alpha_list_re.sub(r'\1"\2"\3',st) # need to do this twice
     st = quote_alpha_list_re.sub(r'\1"\2"\3',st)
     return eval(sanitize_alpha_list_re.sub('',st)) 
+
+class SafeEvalNS(object):
+    def __getitem__(self, name):
+        return name
+
+def safe_eval(st):
+    return eval(st, {}, SafeEvalNS())
+
+safe_list_eval = safe_eval
 
 QuietException = parsing.QuietException
 

@@ -356,6 +356,8 @@ PYMOL API
                     prior = 0
         if not prior:
             dpi = float(dpi)
+            if dpi < 0:
+                dpi = cmd.get_setting_float('image_dots_per_inch')
             width = _unit2px(width, dpi)
             height = _unit2px(height, dpi)
 
@@ -611,20 +613,15 @@ SEE ALSO
                 print " Save: wrote \""+filename+"\"."
         elif format=='sdf':
             state = int(state)
-            if state==0:
-                first_state = 1
-                last_state = cmd.count_states(selection)
-            else:
-                first_state = state
-                last_state = state
             sdf = SDF(filename,'w')
-            for state in range(first_state, last_state+1):
+            for i, (selection, state) in enumerate(
+                    pymol.selecting.objsele_state_iter(selection, state)):
                 rec = SDFRec(io.mol.toList(_self.get_model(selection,state,ref,ref_state))
                              + ["$$$$\n"])
                 sdf.write(rec)
             r = DEFAULT_SUCCESS
             if not quiet:
-                print " Save: wrote %d states to \"%s\"."%(1+last_state-first_state,filename)
+                print " Save: wrote %d states to \"%s\"." % (i + 1, filename)
         elif format=='mol':
             io.mol.toFile(_self.get_model(selection,state,ref,ref_state),filename)
             r = DEFAULT_SUCCESS
@@ -632,22 +629,18 @@ SEE ALSO
                 print " Save: wrote \""+filename+"\"."
         elif format=="mol2":
             state = int(state)
-            if state==0:
-                first_state = 1
-                last_state = cmd.count_states(selection)
-            else:
-                first_state = state
-                last_state = state
-            recList=[]
-            for state in range(first_state, last_state+1):
-                # assign_atom_types selection, format [ mol2, macromodel ], state, quiet
-                assign_atom_types(selection, "mol2", state, 1, _self)
-                recList.extend(io.mol2.toList(_self.get_model(selection,state,ref,ref_state),selection=selection,state=state))
+            recList = []
+            entrycount = 0
+            for osele, ostate in pymol.selecting.objsele_state_iter(selection, state):
+                    assign_atom_types(osele, "mol2", ostate, 1, _self)
+                    recList.extend(io.mol2.toList(_self.get_model(osele,
+                        ostate, ref, ref_state), selection=osele, state=ostate))
+                    entrycount += 1
             m = MOL2(cmd=cmd)
             m.strToFile(recList,filename)
             r = DEFAULT_SUCCESS
             if not quiet:
-                print " Save: wrote %d states to \"%s\"."%(1+last_state-first_state,filename)
+                print ' Save: wrote %d entries to "%s".' % (entrycount, filename)
         elif format=='png':
             r = _self.png(filename,quiet=quiet)
         # refactor below to lift repeated code

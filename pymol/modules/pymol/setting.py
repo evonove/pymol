@@ -118,7 +118,6 @@ if __name__=='pymol.setting':
         selection_width                    = 80 
         selection_overlay                  = 81 
         static_singletons                  = 82 
-        max_triangles                      = 83 
         depth_cue                          = 84 
         specular                           = 85 
         shininess                          = 86 
@@ -755,6 +754,33 @@ if __name__=='pymol.setting':
         suspend_undo_atom_count            = 709
         suspend_deferred                   = 710
         pick_surface                       = 711
+        bg_image_filename                  = 712
+        bg_image_mode                      = 713
+        bg_image_tilesize                  = 714
+        bg_image_linear                    = 715
+        load_object_props_default          = 716
+        load_atom_props_default            = 717
+        label_placement_offset             = 718
+        pdb_conect_nodup                   = 719
+        label_connector                    = 720
+        label_connector_mode               = 721
+        label_connector_color              = 722
+        label_connector_width              = 723
+        label_connector_ext_length         = 724
+        label_bg_color                     = 725
+        use_geometry_shaders               = 726
+        label_relative_mode                = 727
+        label_screen_point                 = 728
+        label_multiline_spacing            = 729
+        label_multiline_justification      = 730
+        label_padding                      = 731
+        label_bg_transparency              = 732
+        label_bg_outline                   = 733
+        ray_label_connector_flat           = 734
+        dash_transparency                  = 735
+        pick_labels                        = 736
+        label_z_target                     = 737
+        session_embeds_data                = 738
 
     setting_sc = Shortcut(SettingIndex.__dict__.keys())
     
@@ -866,12 +892,8 @@ PYMOL API
         if selection2 == None:
             selection2 = selection1
         if log:
-            if ',' in str(value):
-                value = str(cmd.safe_list_eval(str(value)))
-            if len(selection2):
-                cmd.log("set_bond %s,%s,%s\n"%(str(name),str(value),str(selection1),str(selection2)))
-            else:
-                cmd.log("set_bond %s,%s\n"%(str(name),str(value),str(selection1)))           
+            cmd.log("/cmd.set_bond('%s',%s,%s,%s,%s)\n" % (name, repr(value),
+                repr(selection1), repr(selection2), state))
         index = _get_index(str(name))
         if(index<0):
             print "Error: unknown setting '%s'."%name
@@ -1030,12 +1052,7 @@ SEE ALSO
         r = DEFAULT_ERROR
         selection = str(selection)
         if log:
-            if ',' in str(value):
-                value = str(cmd.safe_list_eval(str(value)))
-            if len(selection):
-                cmd.log("set %s,%s,%s\n"%(str(name),str(value),str(selection)))
-            else:
-                cmd.log("set %s,%s\n"%(str(name),str(value)))            
+            cmd.log("/cmd.set('%s',%s,%s,%s)\n" % (name, repr(value), repr(selection), state))
         index = name if isinstance(name, int) else _get_index(str(name))
         if(index<0):
             print "Error: unknown setting '%s'."%name
@@ -1043,10 +1060,11 @@ SEE ALSO
         else:
             try:
                 _self.lock(_self)
-                type = _cmd.get_setting_tuple(_self._COb,int(index),str(""),int(-1))[0]
-                if type==None:
+                stuple = _cmd.get_setting_tuple(_self._COb,int(index),str(""),int(-1))
+                if stuple is None:
                     print "Error: unable to get setting type."
                     raise QuietException
+                type = stuple[0]
                 try:
                     if type==1: # boolean (also support non-zero float for truth)
                         handled = 0
@@ -1151,10 +1169,7 @@ SEE ALSO
         r = DEFAULT_ERROR
         selection = str(selection)
         if log:
-            if(len(selection)):
-                cmd.log("unset %s,%s\n"%(str(name),str(selection)))
-            else:
-                cmd.log("set %s,0\n"%(str(name)))
+            cmd.log("/cmd.unset('%s',%s,%s)\n" % (name, repr(selection), state))
         index = _get_index(str(name))
         if(index<0):
             print "Error: unknown setting '%s'."%name
@@ -1197,10 +1212,8 @@ USAGE
             selection2 = selection1
         selection2 = str(selection2)
         if log:
-            if(len(selection2)):
-                cmd.log("unset %s,%s\n"%(str(name),str(selection1),str(selection2)))
-            else:
-                cmd.log("set %s,%s\n"%(str(name),str(selection1)))
+            cmd.log("/cmd.unset_bond('%s',%s,%s,%s)\n" % (name,
+                repr(selection1), repr(selection2), state))
         index = _get_index(str(name))
         if(index<0):
             print "Error: unknown setting '%s'."%name
@@ -1402,11 +1415,11 @@ SEE ALSO
         if _self._raising(r,_self): raise QuietException
         return r
 
-    def get_setting_updates(_self=cmd): # INTERNAL
+    def get_setting_updates(object='', state=0, _self=cmd): # INTERNAL
         r = []
         if lock_attempt(_self):
             try:
-                r = _cmd.get_setting_updates(_self._COb)
+                r = _cmd.get_setting_updates(_self._COb, object, state-1)
             finally:
                 _self.unlock(r,_self)
         return r
@@ -1467,6 +1480,7 @@ PYMOL API
                    int state, int updates, quiet=1)
 
        '''
+        state, quiet = int(state), int(quiet)
         r = DEFAULT_ERROR
         selection1 = str(selection1)
         if selection2 == None:
@@ -1501,4 +1515,13 @@ PYMOL API
             finally:
                 _self.unlock(r,_self)
         if _self._raising(r,_self): raise QuietException            
+        if not quiet:
+            suffix = ' state %d' % state if state > 0 else ''
+            for model, vlist in r:
+                print ' %s = %s for object %s' % (name, cmd.get(name, model), model)
+                for idx1, idx2, value in vlist:
+                    if value is None:
+                        continue
+                    print ' %s = %s between (%s`%d)-(%s`%d%s)' % (name,
+                            value, model, idx1, model, idx2, suffix)
         return r

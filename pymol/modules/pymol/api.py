@@ -7,6 +7,7 @@ from importing import \
       load_brick,         \
       load_callback,      \
       load_cgo,           \
+      load_coords,        \
       load_embedded,      \
       load_map,           \
       load_model,         \
@@ -298,7 +299,6 @@ from moving import \
       mtoggle,           \
       mstop,             \
       mpng,              \
-      mray,              \
       frame,             \
       get_movie_playing, \
       set_frame,         \
@@ -394,7 +394,6 @@ from experimenting import \
       get_bond_print,     \
       fast_minimize,      \
       import_coords,      \
-      load_coords,        \
       mem,                \
       minimize,           \
       spheroid,           \

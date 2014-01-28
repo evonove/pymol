@@ -246,7 +246,6 @@ typedef struct _CPyMOL {
   ov_word lex_selection_width;
   ov_word lex_selection_overlay;
   ov_word lex_static_singletons;
-  ov_word lex_max_triangles;
   ov_word lex_depth_cue;
   ov_word lex_specular;
   ov_word lex_shininess;
@@ -1167,7 +1166,6 @@ static OVstatus PyMOL_InitAPI(CPyMOL * I)
   LEX_SETTING(selection_width, 80);
   LEX_SETTING(selection_overlay, 81);
   LEX_SETTING(static_singletons, 82);
-  LEX_SETTING(max_triangles, 83);
   LEX_SETTING(depth_cue, 84);
   LEX_SETTING(specular, 85);
   LEX_SETTING(shininess, 86);
@@ -3615,6 +3613,10 @@ void PyMOL_ConfigureShadersGL(CPyMOL * I){
 #endif
 
 #ifdef _PYMOL_API_HAS_PYTHON
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void init_cmd(void);
 
 /* 
@@ -3622,6 +3624,10 @@ void init_cmd(void);
  * void initsglite(void);
 */
 void init_champ(void);
+
+#ifdef __cplusplus
+}
+#endif
 #endif
 
 /* END PROPRIETARY CODE SEGMENT */
@@ -3887,10 +3893,14 @@ void PyMOL_DrawWithoutLock(CPyMOL * I)
                          (char *) glGetString(GL_VERSION));
         if(G->Option->show_splash && !G->Option->quiet) {
 
-          printf(" OpenGL graphics engine:\n");
-          printf("  GL_VENDOR: %s\n", (char *) glGetString(GL_VENDOR));
-          printf("  GL_RENDERER: %s\n", (char *) glGetString(GL_RENDERER));
-          printf("  GL_VERSION: %s\n", (char *) glGetString(GL_VERSION));
+          PRINTFB(G, FB_OpenGL, FB_Results)
+            " OpenGL graphics engine:\n"
+            "  GL_VENDOR:   %s\n"
+            "  GL_RENDERER: %s\n"
+            "  GL_VERSION:  %s\n",
+            (char *) glGetString(GL_VENDOR),
+            (char *) glGetString(GL_RENDERER),
+            (char *) glGetString(GL_VERSION) ENDFB(G);
           if(Feedback(G, FB_OpenGL, FB_Blather)) {
             printf("  GL_EXTENSIONS: %s\n", (char *) glGetString(GL_EXTENSIONS));
           }
@@ -3944,7 +3954,7 @@ void PyMOL_Special(CPyMOL * I, int k, int x, int y, int modifiers)
   char buffer[255];
   (void)buffer;
   if(!grabbed)
-    grabbed = WizardDoKey(G, (unsigned char) k, x, y, modifiers);
+    grabbed = WizardDoSpecial(G, (unsigned char) k, x, y, modifiers);
 
   switch (k) {
   case P_GLUT_KEY_UP:
@@ -4352,7 +4362,7 @@ PyMOLreturn_int_array PyMOL_GetImageDataReturned(CPyMOL * I,
   ((int*)buffer)[0] = ('A'<<24)|('B'<<16)|('G'<<8)|'R';
   ok = SceneCopyExternal(I->G, width, height, row_bytes, (unsigned char *) buffer, mode);
   if(ok) {
-    result.array = buffer;
+    result.array = (int*) buffer;
     result.size = size;
   } else {
     result.status = PyMOLstatus_FAILURE;

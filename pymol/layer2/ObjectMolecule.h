@@ -313,7 +313,7 @@ ObjectMolecule *ObjectMoleculeLoadTRJFile(PyMOLGlobals * G, ObjectMolecule * obj
                                           char *sele, int image, float *shift, int quiet);
 
 ObjectMolecule *ObjectMoleculeLoadRSTFile(PyMOLGlobals * G, ObjectMolecule * obj,
-                                          char *fname, int frame, int quiet);
+                                          char *fname, int frame, int quiet, char mode);
 
 ObjectMolecule *ObjectMoleculeLoadCoords(PyMOLGlobals * G, ObjectMolecule * I,
                                          PyObject * coords, int frame);
@@ -473,4 +473,7 @@ int ObjectMoleculeUpdateAtomTypeInfoForState(PyMOLGlobals * G, ObjectMolecule * 
 void ObjectMoleculeSetAtomBondInfoTypeOldId(PyMOLGlobals * G, ObjectMolecule * obj);
 void ObjectMoleculeSetAtomBondInfoTypeOldIdToNegOne(PyMOLGlobals * G, ObjectMolecule * obj);
 void ObjectMoleculeAdjustDiscreteAtmIdx(ObjectMolecule *I, int *lookup, int nAtom);
+
+int *AtomInfoGetSortedIndex(PyMOLGlobals * G, ObjectMolecule * obj, AtomInfoType * rec, int n,
+                            int **outdex);
 #endif

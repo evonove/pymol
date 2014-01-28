@@ -2,6 +2,214 @@
 CHANGE LOG
 =========================================================================
 
+2014-01-20 Thomas Holder <thomas.holder@schrodinger.com>
+
+	* mutagenesis wizard: use PYMOL_DATA (patch by Michael Banck)
+
+	* updating version 1.7.0.1
+
+2014-01-14 Thomas Holder, Blaine Bell
+
+	* read space group from CCP4 maps
+
+	* handle empty space group like P1 (for best support of map formats
+	  which do not have a space group)
+
+	* map_auto_expand_sym: take symmetry from map if molecular object
+	  doesn't have symmetry information
+
+	* gracefully reject writing MOL format with >999 atoms
+
+	* fix: saving MOL2 format with empty atom name
+
+	* fix: ray+png in batch mode ray traces twice
+
+	* disable seq_view in mpng
+
+	* change movie_quality default to 90 (was 60)
+
+	* fix needs_alpha_reset
+
+	* apbs_tools PDB writing: disable putting spaces before dashes
+
+2014-01-03 Thomas Holder, Blaine Bell
+
+	* fix ramp coloring when loaded from PSE
+
+	* don't set use_shaders with PSE or reinitialize
+
+	* delete duplicates when loading PSE w/ partial=1
+
+	* fix incomplete CGO loading from session file
+
+	* fix viewport logging syntax error
+
+2013-12-19 Thomas Holder
+
+	* fix warnings about unused data argument; patch by Jack Howarth
+	  https://sourceforge.net/p/pymol/bugs/144/
+
+2013-12-14 Thomas Holder
+
+	* submenus can be callables which return a list
+
+2013-12-13 Blaine Bell, Thomas Holder
+
+	* fix antialiasing internal edges, ray tracing
+
+	* fix clicking volume panel dots at zero alpha
+
+	* fix molecular weight w/ aromatic bonds & missing hydrogens
+
+	* fixed sequence text/background when scrollbar isn't shown
+
+	* remove deprecated mray command
+
+2013-11-26 Blaine Bell, Thomas Holder
+
+	* remove self assignments
+	  http://sourceforge.net/p/pymol/bugs/143/
+
+	* cmd.load_callback: import fixed version to api
+
+	* don't sort atoms in discrete objects
+
+	* fix resizing issue for lines on ATI cards
+
+	* fix reset stereo with reinitialize
+
+	* fix draw stereo
+
+2013-11-21 Thomas Holder <speleo3@users.sf.net>
+
+	* fix label shader fog blending
+
+2013-11-11 Blaine Bell, Thomas Holder
+
+	* fix segfault in SceneImagePrepareImpl
+
+	* fix dihedral rep for objects with >20 states
+
+	* cmd.png: consider image_dots_per_inch with _unit2px
+
+	* preset.py: delete temporary selections
+
+	* fixed CGO demo crash in CGOSimplify
+
+	* print OpenGL info not only to STDOUT, but to PyMOL text output
+
+	* fix tcl/tk window placement on OS X 10.9
+
+	* get_viewport: do not print int as float
+
+	* fix: do not set wiz.cmd to None when saving PSE
+
+	* fix cartoon picking bug
+
+	* fix crash during selection
+
+	* fix two_sided_lighting cartoon shader bug
+
+	* fix isolevel command for isosurface with shaders
+
+	* mol2 writing with multiple objects
+
+	* fix removing non-polar hydrogens
+
+	* fix crash during select bychain
+
+	* fixed line_as_cylinder bug
+
+	* fixed smooth half bonds with line as cylinders
+
+	* get_bond command
+
+2013-10-31 Thomas Holder <speleo3@users.sf.net>
+
+	* fix splash.png sRGB profile (bug #136)
+
+	* improve Filter Wizard, "Create Filtered Object"
+
+	* consider "ignore_pdb_segi" setting when saving to PDB
+
+	* delete obsolete files (sglite, ExtensionClass)
+
+2013-10-18 Thomas Holder <speleo3@users.sf.net>
+
+	* remove out-dated pymol.opengl module
+
+	* enhance get_version command, quiet=-1 gives build information
+
+	* remove max_triangles setting (was unused)
+
+2013-10-04 Thomas Holder <speleo3@users.sf.net>
+
+	* fix segfault in OrthoRenderCGO
+	  https://sourceforge.net/p/pymol/bugs/137/
+
+	* importing.load_coords
+
+	* improve util.chainbow
+
+	* fix plugin manager PyMOLWiki URL install: strip whitespace
+
+2013-10-01 Thomas Holder <speleo3@users.sf.net>, Blaine Bell <blaine.bell@schrodinger.com>
+
+	* major re-work/organization of RepSphere.c and fixed sphere picking
+
+	* fix color type settings return format for hex colors (0x prefix)
+
+	* fix special keys in wizard input prompt
+
+2013-09-09 Thomas Holder
+
+	* add "x" "y" "z" selection operators
+	  Example: select foo, x < 12.3
+
+2013-09-08 Blaine Bell, Thomas Holder
+
+	* fix seq viewer background color
+
+	* add "backbone" and "sidechain" selection keywords
+
+	* fix: cealign inverts target structure
+
+2013-08-27 Thomas Holder <thomas.holder@schrodinger.com>
+
+	* fix [bugs:#135] array overrun
+	  https://sourceforge.net/p/pymol/bugs/135/
+
+	* apply one part of [patches:#6]
+	  https://sourceforge.net/p/pymol/patches/6/
+
+	* preserve "use_shaders" setting when loading session files
+
+	* simplify pymolrc search routine
+
+	* fix CtSh-M click on group members in object menu panel
+
+	* set_key string support
+
+2013-08-13 Thomas Holder <thomas.holder@schrodinger.com>
+
+	* fix h_add atom sorting
+
+	* add "metals" keyword to selection language
+
+2013-07-31 Thomas Holder <thomas.holder@schrodinger.com>
+
+	* improve amber rst/crd support
+
+	* fix pair_fitting with one atom pair
+
+2013-07-23 Thomas Holder <thomas.holder@schrodinger.com>
+
+	* fix numpy/ndarrayobject.h import
+
+	* setup.py: add --osx-frameworks agument
+
+	* rpc server: use register_instance
+
 2013-07-16 Thomas Holder <thomas.holder@schrodinger.com>
 
 	* fixed load_traj with stop/max arguments.

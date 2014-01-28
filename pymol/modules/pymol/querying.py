@@ -14,6 +14,7 @@
 
 if __name__=='pymol.querying':
 
+    import time
     import selector
     import pymol
     import cmd
@@ -595,9 +596,10 @@ PYMOL API
 	'''
 DESCRIPTION
  
-    "get_version" returns a tuple of length three containing text,
+    "get_version" returns a tuple of length six containing text,
     floating point, and integer representations of the current PyMOL
-    version number.
+    version number, build date as unix timestamp, GIT SHA and SVN
+    code revision so far available.
    
 PYMOL API
 
@@ -613,11 +615,19 @@ PYMOL API
         if _raising(r,_self):
             raise pymol.CmdException
         else:
-            if not quiet:
-                if _feedback(fb_module.cmd,fb_mask.results,_self):
-                    print " version: %s (%2.3f) %d"%r
+            quiet = int(quiet)
+            if quiet < 1 and _feedback(fb_module.cmd, fb_mask.results, _self):
+                print " version: %s (%2.3f) %d," % r[:3],
+                print "Incentive Product" if pymol.invocation.options.incentive_product else "Open-Source"
+                if quiet < 0:
+                    if r[3]:
+                        print ' build date:', time.strftime('%c %Z', time.localtime(r[3]))
+                    if r[4]:
+                        print ' git sha:', r[4]
+                    if r[5]:
+                        print ' svn rev:', r[5]
         return r
-    
+
     def get_vrml(version=2,_self=cmd): 
         '''
 DESCRIPTION
@@ -838,10 +848,14 @@ NOTES
             r = _cmd.get_color(_self._COb,str(color),3)
         finally:
             _self.unlock(r,_self)
-        if _raising(r,_self): raise pymol.CmdException
         return r
             
-    def get_renderer(_self=cmd):  # 
+    def get_renderer(quiet=1, _self=cmd):
+        '''
+DESCRIPTION
+
+    Prints OpenGL renderer information.
+        '''
         r = DEFAULT_ERROR
         try:
             _self.lock(_self)
@@ -849,6 +863,13 @@ NOTES
         finally:
             _self.unlock(r,_self)
         if _raising(r,_self): raise pymol.CmdException
+
+        if not int(quiet):
+            print " OpenGL graphics engine:"
+            print "  GL_VENDOR:   ", r[0]
+            print "  GL_RENDERER: ", r[1]
+            print "  GL_VERSION:  ", r[2]
+
         return r
 
     def get_phipsi(selection="(name ca)",state=-1,_self=cmd):

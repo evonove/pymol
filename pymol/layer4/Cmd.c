@@ -109,8 +109,6 @@ extern int do_window(int code,int x,int y,int w, int h);
 #endif /* _MACPYMOL_XCODE */
 /* END PROPRIETARY CODE SEGMENT */
 
-int PyThread_get_thread_ident(void);
-
 #define API_SETUP_PYMOL_GLOBALS \
   if(self && PyCObject_Check(self)) { \
     PyMOLGlobals **G_handle = (PyMOLGlobals**)PyCObject_AsVoidPtr(self); \
@@ -140,6 +138,8 @@ static void APIEnter(PyMOLGlobals * G)
 #ifdef WIN32
     abort();
 #endif
+
+
 /* END PROPRIETARY CODE SEGMENT */
     exit(0);
   }
@@ -426,7 +426,7 @@ static PyObject *CmdRayAntiThread(PyObject * self, PyObject * args)
   if(ok)
     ok = PyCObject_Check(py_thread_info);
   if(ok)
-    ok = ((thread_info = PyCObject_AsVoidPtr(py_thread_info)) != NULL);
+    ok = ((thread_info = (CRayAntiThreadInfo *) PyCObject_AsVoidPtr(py_thread_info)) != NULL);
   if(ok) {
     API_SETUP_PYMOL_GLOBALS;
     ok = (G != NULL);
@@ -453,7 +453,7 @@ static PyObject *CmdRayHashThread(PyObject * self, PyObject * args)
   if(ok)
     ok = PyCObject_Check(py_thread_info);
   if(ok)
-    ok = ((thread_info = PyCObject_AsVoidPtr(py_thread_info)) != NULL);
+    ok = ((thread_info = (CRayHashThreadInfo*) PyCObject_AsVoidPtr(py_thread_info)) != NULL);
   if(ok) {
     API_SETUP_PYMOL_GLOBALS;
     ok = (G != NULL);
@@ -478,7 +478,7 @@ static PyObject *CmdRayTraceThread(PyObject * self, PyObject * args)
   if(ok)
     ok = PyCObject_Check(py_thread_info);
   if(ok)
-    ok = ((thread_info = PyCObject_AsVoidPtr(py_thread_info)) != NULL);
+    ok = ((thread_info = (CRayThreadInfo*) PyCObject_AsVoidPtr(py_thread_info)) != NULL);
   if(ok) {
     API_SETUP_PYMOL_GLOBALS;
     ok = (G != NULL);
@@ -505,7 +505,7 @@ static PyObject *CmdCoordSetUpdateThread(PyObject * self, PyObject * args)
   if(ok)
     ok = PyCObject_Check(py_thread_info);
   if(ok)
-    ok = ((thread_info = PyCObject_AsVoidPtr(py_thread_info)) != NULL);
+    ok = ((thread_info = (CCoordSetUpdateThreadInfo*) PyCObject_AsVoidPtr(py_thread_info)) != NULL);
   if(ok) {
     API_SETUP_PYMOL_GLOBALS;
     ok = (G != NULL);
@@ -530,7 +530,7 @@ static PyObject *CmdObjectUpdateThread(PyObject * self, PyObject * args)
   if(ok)
     ok = PyCObject_Check(py_thread_info);
   if(ok)
-    ok = ((thread_info = PyCObject_AsVoidPtr(py_thread_info)) != NULL);
+    ok = ((thread_info = (CObjectUpdateThreadInfo*) PyCObject_AsVoidPtr(py_thread_info)) != NULL);
   if(ok) {
     API_SETUP_PYMOL_GLOBALS;
     ok = (G != NULL);
@@ -1653,7 +1653,7 @@ static PyObject * CmdMapGenerate(PyObject * self, PyObject * args)
   double reso_high, reso_low, cell[6];
 
 
-  ok = PyArg_ParseTuple(args, "Ossssssddsddddddii", &self, &name, &reflection_file, &tempFile,
+  ok = PyArg_ParseTuple(args, "Ossssszddsddddddii", &self, &name, &reflection_file, &tempFile,
 			&amplitudes, &phases, &weights, &reso_low, &reso_high,
 			&space_group, &cell[0], &cell[1], &cell[2], &cell[3], &cell[4],
 			&cell[5],&quiet, &zoom);
@@ -1754,12 +1754,12 @@ static PyObject *CmdMapSet(PyObject * self, PyObject * args)
 {
   PyMOLGlobals *G = NULL;
   char *name, *operands;
-  int target_state, source_state, operator;
+  int target_state, source_state, operator_;
   int zoom, quiet;
   int ok = false;
 
   ok =
-    PyArg_ParseTuple(args, "Osisiiii", &self, &name, &operator, &operands, &target_state,
+    PyArg_ParseTuple(args, "Osisiiii", &self, &name, &operator_, &operands, &target_state,
                      &source_state, &zoom, &quiet);
   if(ok) {
     API_SETUP_PYMOL_GLOBALS;
@@ -1769,7 +1769,7 @@ static PyObject *CmdMapSet(PyObject * self, PyObject * args)
   }
   if(ok && (ok = APIEnterNotModal(G))) {
     ok =
-      ExecutiveMapSet(G, name, operator, operands, target_state, source_state, zoom,
+      ExecutiveMapSet(G, name, operator_, operands, target_state, source_state, zoom,
                       quiet);
     APIExit(G);
   }
@@ -1862,12 +1862,22 @@ static PyObject *CmdGetRenderer(PyObject * self, PyObject * args)
   return Py_BuildValue("(sss)", vendor, renderer, version);
 }
 
+#include <PyMOLBuildInfo.h>
+
 static PyObject *CmdGetVersion(PyObject * self, PyObject * args)
 {
-  double ver_num = _PyMOL_VERSION_double;
-  WordType ver_str;
-  strcpy(ver_str, _PyMOL_VERSION);
-  return Py_BuildValue("(sdi)", ver_str, ver_num, _PyMOL_VERSION_int);
+  return Py_BuildValue("(sdiisi)",
+      _PyMOL_VERSION,
+      _PyMOL_VERSION_double,
+      _PyMOL_VERSION_int,
+#ifdef _PyMOL_BUILD_DATE
+      _PyMOL_BUILD_DATE,
+      _PYMOL_BUILD_GIT_SHA,
+      _PyMOL_BUILD_SVN_REV
+#else
+      0, "", 0
+#endif
+      );
 }
 
 static PyObject *CmdTranslateAtom(PyObject * self, PyObject * args)
@@ -2240,18 +2250,29 @@ static PyObject *CmdGetSettingUpdates(PyObject * self, PyObject * args)
 {
   PyMOLGlobals *G = NULL;
   PyObject *result = NULL;
-  int ok = false;
-  ok = PyArg_ParseTuple(args, "O", &self);;
-  if(ok) {
-    API_SETUP_PYMOL_GLOBALS;
-    ok = (G != NULL);
-  } else {
+  int state;
+  char *name;
+  CSetting **handle, *csetting = NULL;
+
+  if(!PyArg_ParseTuple(args, "Osi", &self, &name, &state)) {
     API_HANDLE_ERROR;
+    th_raise(2);
   }
-  if(ok && (ok = APIEnterBlockedNotModal(G))) {
-    result = SettingGetUpdateList(G, NULL);
-    APIExitBlocked(G);
+
+  API_SETUP_PYMOL_GLOBALS;
+  th_assert(2, G && APIEnterBlockedNotModal(G));
+
+  if(name[0]) {
+    CObject *obj = ExecutiveFindObjectByName(G, name);
+    th_assert(1, obj);
+    th_assert(1, handle = obj->fGetSettingHandle(obj, state));
+    csetting = *handle;
   }
+
+  result = SettingGetUpdateList(G, csetting);
+th_except1:
+  APIExitBlocked(G);
+th_except2:
   return (APIAutoNone(result));
 }
 
@@ -2480,7 +2501,7 @@ static PyObject *CmdImportCoords(PyObject * self, PyObject * args)
       mmdat = PyCObject_AsVoidPtr(cObj);
     if((ok = APIEnterNotModal(G))) {
       if(mmdat)
-        ok = ExportCoordsImport(G, str1, int1, mmdat, 0);
+        ok = ExportCoordsImport(G, str1, int1, (ExportCoords*) mmdat, 0);
       APIExit(G);
     }
   }
@@ -5951,21 +5972,24 @@ static PyObject *CmdPNG(PyObject * self, PyObject * args)
     API_HANDLE_ERROR;
   }
   if(ok && (ok = APIEnterNotModal(G))) {
-    if(prior) {
-      if(ScenePNG(G, str1, dpi, quiet, prior, format))
-        result = 1;             /* signal success by returning 1 instead of 0, or -1 for error  */
-    } else {
-      ExecutiveDrawNow(G);      /* TODO STATUS */
-      if(ray || !G->HaveGUI) {  /* should !G->HaveGUI be here?  It should not re-ray trace if 
-				   it already exists.  Works if taken out on OSX */
+    // with prior=1 other arguments (width, height, ray) are ignored
+
+    if(!prior) {
+      if(ray || !G->HaveGUI && (!SceneGetCopyType(G) || width || height)) {
         SceneRay(G, width, height, SettingGetGlobal_i(G, cSetting_ray_default_renderer),
                  NULL, NULL, 0.0F, 0.0F, false, NULL, true, -1);
-        ok = ScenePNG(G, str1, dpi, quiet, false, format);
+        prior = 1;
       } else if(width || height) {
         SceneDeferImage(G, width, height, str1, -1, dpi, quiet, format);
+        result = 1;
       } else {
-        ok = ScenePNG(G, str1, dpi, quiet, false, format);
+        ExecutiveDrawNow(G);      /* TODO STATUS */
       }
+    }
+
+    if(!result) {
+      if(ScenePNG(G, str1, dpi, quiet, prior, format))
+        result = 1;             /* signal success by returning 1 instead of 0, or -1 for error  */
     }
     APIExit(G);
   }
@@ -7044,51 +7068,43 @@ static PyObject *CmdLoadCoords(PyObject * self, PyObject * args)
   PyMOLGlobals *G = NULL;
   char *oname;
   PyObject *model;
-  CObject *origObj = NULL, *obj;
-  OrthoLineType buf;
-  int frame, type;
-  int ok = false;
+  CObject *origObj = NULL;
+  ObjectMolecule *obj;
+  int frame;
 
-  buf[0] = 0;
-
-  ok = PyArg_ParseTuple(args, "OsOii", &self, &oname, &model, &frame, &type);
-
-  if(ok) {
-    API_SETUP_PYMOL_GLOBALS;
-    ok = (G != NULL);
-  } else {
+  if(!PyArg_ParseTuple(args, "OsOi", &self, &oname, &model, &frame)) {
     API_HANDLE_ERROR;
+    th_raise(1);
   }
-  if(ok && (ok = APIEnterNotModal(G))) {
-    origObj = ExecutiveFindObjectByName(G, oname);
 
-    /* TODO check for existing object of wrong type */
-    if(!origObj) {
-      ErrMessage(G, "LoadCoords", "named object not found.");
-      ok = false;
-    } else {
-      switch (type) {
-      case cLoadTypeChemPyModel:
-        PBlock(G);              /*PBlockAndUnlockAPI(); */
-        obj =
-          (CObject *) ObjectMoleculeLoadCoords(G, (ObjectMolecule *) origObj, model,
-                                               frame);
-        PUnblock(G);            /*PLockAPIAndUnblock(); */
-        if(frame < 0)
-          frame = ((ObjectMolecule *) obj)->NCSet - 1;
-        sprintf(buf, " CmdLoad: Coordinates appended into object \"%s\", state %d.\n",
-                oname, frame + 1);
-        break;
-      }
-    }
-    if(origObj) {
-      PRINTFB(G, FB_Executive, FB_Actions)
-        "%s", buf ENDFB(G);
-      OrthoRestorePrompt(G);
-    }
-    APIExit(G);
+  API_SETUP_PYMOL_GLOBALS;
+  th_assert(1, G && APIEnterNotModal(G));
+
+  origObj = ExecutiveFindObjectByName(G, oname);
+  if(!origObj || !origObj->type == cObjectMolecule) {
+    ErrMessage(G, "LoadCoords", "named object molecule not found.");
+    th_raise(2);
   }
-  return APIResultOk(ok);
+
+  PBlock(G);              /*PBlockAndUnlockAPI(); */
+  obj = ObjectMoleculeLoadCoords(G, (ObjectMolecule *) origObj, model, frame);
+  PUnblock(G);            /*PLockAPIAndUnblock(); */
+  th_assert(2, obj);
+
+  if(frame < 0)
+    frame = obj->NCSet - 1;
+
+  PRINTFB(G, FB_Executive, FB_Actions)
+    " CmdLoad: Coordinates appended into object \"%s\", state %d.\n",
+    oname, frame + 1 ENDFB(G);
+  OrthoRestorePrompt(G);
+
+  APIExit(G);
+  return APISuccess();
+th_except2:
+  APIExit(G);
+th_except1:
+  return APIFailure();
 }
 
 static PyObject *CmdLoad(PyObject * self, PyObject * args)
@@ -7278,7 +7294,7 @@ static PyObject *CmdLoad(PyObject * self, PyObject * args)
     case cLoadTypeCRD:
       PRINTFD(G, FB_CCmd) " CmdLoad-DEBUG: loading CRD\n" ENDFD;
       if(origObj) {             /* always reinitialize topology objects from scratch */
-        ObjectMoleculeLoadRSTFile(G, (ObjectMolecule *) origObj, fname, frame, quiet);
+        ObjectMoleculeLoadRSTFile(G, (ObjectMolecule *) origObj, fname, frame, quiet, 1);
         /* if(finish)
            ExecutiveUpdateObjectSelection(G,origObj); unnecc */
         sprintf(buf,
@@ -7293,7 +7309,7 @@ static PyObject *CmdLoad(PyObject * self, PyObject * args)
     case cLoadTypeRST:
       PRINTFD(G, FB_CCmd) " CmdLoad-DEBUG: loading RST\n" ENDFD;
       if(origObj) {             /* always reinitialize topology objects from scratch */
-        ObjectMoleculeLoadRSTFile(G, (ObjectMolecule *) origObj, fname, frame, quiet);
+        ObjectMoleculeLoadRSTFile(G, (ObjectMolecule *) origObj, fname, frame, quiet, 0);
         /* if(finish)
            ExecutiveUpdateObjectSelection(G,origObj); unnecc */
         sprintf(buf,

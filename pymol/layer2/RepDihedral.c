@@ -98,7 +98,7 @@ static void RepDihedralRender(RepDihedral * I, RenderInfo * info)
     while(ok && c > 0) {
       /*      printf("%8.3f %8.3f %8.3f   %8.3f %8.3f %8.3f \n",v[3],v[4],v[5],v[6],v[7],v[8]); */
       if(round_ends) {
-        ok &+ ray->fSausage3fv(ray, v, v + 3, radius, vc, vc);
+        ok &= ray->fSausage3fv(ray, v, v + 3, radius, vc, vc);
       } else {
         ok &= ray->fCustomCylinder3fv(ray, v, v + 3, radius, vc, vc, cCylCapFlat, cCylCapFlat);
       }
@@ -361,8 +361,8 @@ Rep *RepDihedralNew(DistSet * ds, int state)
   I->R.fFree = (void (*)(struct Rep *)) RepDihedralFree;
   I->R.fRecolor = NULL;
   I->R.cs = NULL;
-  if (ds && ds->Rep && state >= 0 && ds->Rep[state])
-    I->R.cs = ds->Rep[state]->cs;
+  if (ds && ds->Rep && ds->Rep[cRepDihedral])
+    I->R.cs = ds->Rep[cRepDihedral]->cs;
 
   dash_len = SettingGet_f(G, ds->Setting, ds->Obj->Obj.Setting, cSetting_dash_length);
   dash_gap = SettingGet_f(G, ds->Setting, ds->Obj->Obj.Setting, cSetting_dash_gap);
@@ -575,5 +575,5 @@ Rep *RepDihedralNew(DistSet * ds, int state)
     RepDihedralFree(I);
     I = NULL;
   }
-  return ((void *) (struct Rep *) I);
+  return (Rep *) I;
 }

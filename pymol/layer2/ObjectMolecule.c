@@ -877,12 +877,15 @@ ObjectMolecule *ObjectMoleculeLoadTRJFile(PyMOLGlobals * G, ObjectMolecule * I,
   if(!f) {
     ok = ErrMessage(G, "ObjectMoleculeLoadTRJFile", "Unable to open file!");
   } else {
-    if(!I->CSTmpl) {
+    if(I->CSTmpl) {
+      cs = CoordSetCopy(I->CSTmpl);
+    } else if (I->NCSet > 0) {
+      cs = CoordSetCopy(I->CSet[0]);
+    } else {
       PRINTFB(G, FB_ObjectMolecule, FB_Errors)
         " ObjMolLoadTRJFile: Missing topology" ENDFB(G);
       return (I);
     }
-    cs = CoordSetCopy(I->CSTmpl);
 
     if(sele0 >= 0) {            /* build array of cross-references */
       xref = Alloc(int, I->NAtom);
@@ -1219,8 +1222,14 @@ ObjectMolecule *ObjectMoleculeLoadTRJFile(PyMOLGlobals * G, ObjectMolecule * I,
 }
 
 ObjectMolecule *ObjectMoleculeLoadRSTFile(PyMOLGlobals * G, ObjectMolecule * I,
-                                          char *fname, int frame, int quiet)
+                                          char *fname, int frame, int quiet, char mode)
 {
+  /*
+   * mode = 0: AMBER coordinate/restart file (one frame only)
+   * mode = 1: AMBER trajectory
+   * mode = 2: AMBER trajectory with box
+   *           http://ambermd.org/formats.html
+   */
   int ok = true;
   FILE *f;
   char *buffer, *p;
@@ -1231,6 +1240,13 @@ ObjectMolecule *ObjectMoleculeLoadRSTFile(PyMOLGlobals * G, ObjectMolecule * I,
   CoordSet *cs = NULL;
   int size;
   size_t res;
+  char ncolumn = 6; // number of coordinates per line
+  char nbyte = 12;  // width of one coordinate
+
+  if(mode > 0) {
+    ncolumn = 10;
+    nbyte = 8;
+  }
 
 #define BUFSIZE 4194304
 #define GETTING_LOW 10000
@@ -1239,12 +1255,15 @@ ObjectMolecule *ObjectMoleculeLoadRSTFile(PyMOLGlobals * G, ObjectMolecule * I,
   if(!f)
     ok = ErrMessage(G, "ObjectMoleculeLoadRSTFile", "Unable to open file!");
   else {
-    if(!I->CSTmpl) {
+    if(I->CSTmpl) {
+      cs = CoordSetCopy(I->CSTmpl);
+    } else if (I->NCSet > 0) {
+      cs = CoordSetCopy(I->CSet[0]);
+    } else {
       PRINTFB(G, FB_ObjectMolecule, FB_Errors)
         " ObjMolLoadRSTFile: Missing topology" ENDFB(G);
       return (I);
     }
-    cs = CoordSetCopy(I->CSTmpl);
     CHECKOK(ok, cs);
     if (ok){
       PRINTFB(G, FB_ObjectMolecule, FB_Blather)
@@ -1267,7 +1286,8 @@ ObjectMolecule *ObjectMoleculeLoadRSTFile(PyMOLGlobals * G, ObjectMolecule * I,
     }
     if (ok){
       p = nextline(p);
-      p = nextline(p);
+      if (mode == 0) // skip NATOM,TIME
+        p = nextline(p);
     }
     a = 0;
     b = 0;
@@ -1275,8 +1295,8 @@ ObjectMolecule *ObjectMoleculeLoadRSTFile(PyMOLGlobals * G, ObjectMolecule * I,
     f1 = 0.0;
     f2 = 0.0;
     while(ok && *p) {
-      p = ncopy(cc, p, 12);
-      if((++b) == 6) {
+      p = ncopy(cc, p, nbyte);
+      if((++b) == ncolumn) {
         b = 0;
         p = nextline(p);
       }
@@ -1293,6 +1313,8 @@ ObjectMolecule *ObjectMoleculeLoadRSTFile(PyMOLGlobals * G, ObjectMolecule * I,
           if((++a) == I->NAtom) {
             a = 0;
             if(b)
+              p = nextline(p);
+            if(mode == 2) // skip box
               p = nextline(p);
             b = 0;
             /* add new coord set */
@@ -1319,7 +1341,11 @@ ObjectMolecule *ObjectMoleculeLoadRSTFile(PyMOLGlobals * G, ObjectMolecule * I,
 	    if (ok)
 	      cs = CoordSetCopy(cs);
 	    CHECKOK(ok, cs);
-            break;
+
+            if (mode == 0) // restart file has only one frame
+              break;
+
+            frame += 1;
           }
         }
       } else {
@@ -2295,7 +2321,7 @@ ObjectMolecule *ObjectMoleculeReadTOPStr(PyMOLGlobals * G, ObjectMolecule * I,
 	atInfo = I->AtomInfo;
       isNew = true;
     } else {                    /* never */
-      atInfo = VLAMalloc(10, sizeof(AtomInfoType), 2, true);    /* autozero here is important */
+      atInfo = (AtomInfoType*) VLAMalloc(10, sizeof(AtomInfoType), 2, true);    /* autozero here is important */
       CHECKOK(ok, atInfo);
       isNew = false;
     }
@@ -2345,7 +2371,7 @@ ObjectMolecule *ObjectMoleculeReadTOPStr(PyMOLGlobals * G, ObjectMolecule * I,
       I->Symmetry = SymmetryCopy(cset->Symmetry);
       CHECKOK(ok, I->Symmetry);
       if (ok)
-	ok &= SymmetryAttemptGeneration(I->Symmetry, false);
+	SymmetryAttemptGeneration(I->Symmetry, false);
     }
 
     if(I->CSTmpl)
@@ -2689,7 +2715,7 @@ ObjectMolecule *ObjectMoleculeReadPMO(PyMOLGlobals * G, ObjectMolecule * I, CRaw
         atInfo = I->AtomInfo;
         isNew = true;
       } else {
-        atInfo = VLAMalloc(10, sizeof(AtomInfoType), 2, true);  /* autozero here is important */
+        atInfo = (AtomInfoType*) VLAMalloc(10, sizeof(AtomInfoType), 2, true);  /* autozero here is important */
         isNew = false;
       }
       if(isNew) {
@@ -2852,7 +2878,7 @@ int ObjectMoleculeMultiSave(ObjectMolecule * I, char *fname, FILE * f, int state
         raw = RawOpenAppend(I->Obj.G, fname);
       }
       if(raw) {
-        aiVLA = VLAMalloc(1000, sizeof(AtomInfoType), 5, true);
+        aiVLA = VLACalloc(AtomInfoType, 1000);
         bondVLA = VLACalloc(BondType, 4000);
         if(state < 0) {
           start = 0;
@@ -3733,7 +3759,7 @@ ObjectMolecule *ObjectMoleculeReadXYZStr(PyMOLGlobals * G, ObjectMolecule * I,
       atInfo = I->AtomInfo;
       isNew = true;
     } else {
-      atInfo = VLAMalloc(10, sizeof(AtomInfoType), 2, true);    /* autozero here is important */
+      atInfo = (AtomInfoType*) VLAMalloc(10, sizeof(AtomInfoType), 2, true);    /* autozero here is important */
       isNew = false;
     }
     if(isNew) {
@@ -8309,7 +8335,7 @@ ObjectMolecule *ObjectMoleculeLoadChemPyModel(PyMOLGlobals * G,
       atInfo = I->AtomInfo;
       isNew = true;
     } else {
-      atInfo = VLAMalloc(10, sizeof(AtomInfoType), 2, true);    /* autozero here is important */
+      atInfo = (AtomInfoType*) VLAMalloc(10, sizeof(AtomInfoType), 2, true);    /* autozero here is important */
       isNew = false;
       if (discrete)
 	ObjectMoleculeSetDiscrete(G, I, true);
@@ -8461,39 +8487,41 @@ ObjectMolecule *ObjectMoleculeLoadCoords(PyMOLGlobals * G, ObjectMolecule * I,
   return NULL;
 #else
   CoordSet *cset = NULL;
-  int ok = true;
-  int a, l;
+  int a, b, l;
   PyObject *v;
   float *f;
-  a = 0;
-  while(a < I->NCSet) {
-    if(I->CSet[a]) {
-      cset = I->CSet[a];
-      break;
-    }
-    a++;
+
+  if(!PySequence_Check(coords)) {
+    ErrMessage(G, "LoadCoords", "passed argument is not a sequence");
+    th_raise(1);
   }
 
-  if(!PyList_Check(coords))
-    ErrMessage(G, "LoadsCoords", "passed argument is not a list");
-  else {
-    l = PyList_Size(coords);
-    if(l == cset->NIndex) {
-      cset = CoordSetCopy(cset);
-      f = cset->Coord;
-      for(a = 0; a < l; a++) {
-        v = PyList_GetItem(coords, a);
+  // find any coordinate set
+  for(a = 0; !cset && a < I->NCSet; a++)
+    cset = I->CSet[a];
+  th_assert(1, cset);
+  cset = CoordSetCopy(cset);
 
-
-/* no error checking */
-        *(f++) = (float) PyFloat_AsDouble(PyList_GetItem(v, 0));
-        *(f++) = (float) PyFloat_AsDouble(PyList_GetItem(v, 1));
-        *(f++) = (float) PyFloat_AsDouble(PyList_GetItem(v, 2));
-      }
-    }
+  // check atom count
+  l = PySequence_Size(coords);
+  if(l != cset->NIndex) {
+    ErrMessage(G, "LoadCoords", "atom count mismatch");
+    th_raise(1);
   }
+
+  // copy coordinates
+  f = cset->Coord;
+  for(a = 0; a < l; a++) {
+    v = PySequence_GetItem(coords, a);
+
+    for(b = 0; b < 3; b++)
+      f[a * 3 + b] = (float) PyFloat_AsDouble(PySequence_GetItem(v, b));
+
+    th_assert(2, !PyErr_Occurred());
+  }
+
   /* include coordinate set */
-  if(ok) {
+  {
     if(cset->fInvalidateRep)
       cset->fInvalidateRep(cset, cRepAll, cRepInvRep);
 
@@ -8507,7 +8535,18 @@ ObjectMolecule *ObjectMoleculeLoadCoords(PyMOLGlobals * G, ObjectMolecule * I,
     I->CSet[frame] = cset;
     SceneCountFrames(G);
   }
+
+  // success
   return (I);
+
+  // error handling
+th_except2:
+  PyErr_Print();
+th_except1:
+  if(cset)
+    cset->fFree(cset);
+  ErrMessage(G, "LoadCoords", "failed");
+  return NULL;
 #endif
 }
 
@@ -9574,7 +9613,7 @@ ObjectMolecule *ObjectMoleculeReadStr(PyMOLGlobals * G, ObjectMolecule * I,
       I = (ObjectMolecule *) ObjectMoleculeNew(G, (discrete > 0));
       atInfo = I->AtomInfo;
     } else {
-      atInfo = VLAMalloc(10, sizeof(AtomInfoType), 2, true);    /* autozero here is important */
+      atInfo = (AtomInfoType*) VLAMalloc(10, sizeof(AtomInfoType), 2, true);    /* autozero here is important */
     }
 
     if(isNew) {
@@ -9745,7 +9784,7 @@ int ObjectMoleculeMerge(ObjectMolecule * I, AtomInfoType * ai,
 
   /* first, sort the coodinate set */
 
-  index = AtomInfoGetSortedIndex(G, &I->Obj, ai, cs->NIndex, &outdex);
+  index = AtomInfoGetSortedIndex(G, I, ai, cs->NIndex, &outdex);
   CHECKOK(ok, index);
   if (!ok)
     return false;
@@ -12571,7 +12610,7 @@ ObjectMolecule *ObjectMoleculeDummyNew(PyMOLGlobals * G, int type)
   }
   zero3f(coord);
 
-  atInfo = VLAMalloc(10, sizeof(AtomInfoType), 2, true);        /* autozero here is important */
+  atInfo = (AtomInfoType*) VLAMalloc(10, sizeof(AtomInfoType), 2, true);        /* autozero here is important */
   CHECKOK(ok, atInfo);
   if (!ok){
     VLAFreeP(coord);
@@ -12643,7 +12682,7 @@ ObjectMolecule *ObjectMoleculeNew(PyMOLGlobals * G, int discreteFlag)
   I->NAtom = 0;
   I->NBond = 0;
   I->AtomInfo = NULL;
-  I->CSet = VLAMalloc(10, sizeof(CoordSet *), 5, true); /* auto-zero */
+  I->CSet = VLACalloc(CoordSet *, 10); /* auto-zero */
   CHECKOK(ok, I->CSet);
   if (!ok){
     OOFreeP(I);
@@ -12690,7 +12729,7 @@ ObjectMolecule *ObjectMoleculeNew(PyMOLGlobals * G, int discreteFlag)
     ObjectMoleculeGetObjectState;
 
   I->Obj.fGetCaption = (char *(*)(CObject *, char *, int)) ObjectMoleculeGetCaption;
-  I->AtomInfo = VLAMalloc(10, sizeof(AtomInfoType), 2, true);   /* autozero here is important */
+  I->AtomInfo = (AtomInfoType*) VLAMalloc(10, sizeof(AtomInfoType), 2, true);   /* autozero here is important */
   CHECKOK(ok, I->AtomInfo);
   if (!ok){
     ObjectMoleculeFree(I);
@@ -12726,7 +12765,7 @@ ObjectMolecule *ObjectMoleculeCopy(ObjectMolecule * obj)
   /* ListInit(I->UndoData); */
   for(a = 0; a <= cUndoMask; a++)
     I->UndoCoord[a] = NULL;
-  I->CSet = VLAMalloc(I->NCSet, sizeof(CoordSet *), 5, true);   /* auto-zero */
+  I->CSet = VLACalloc(CoordSet *, I->NCSet);   /* auto-zero */
   for(a = 0; a < I->NCSet; a++) {
     I->CSet[a] = CoordSetCopy(obj->CSet[a]);
     if (I->CSet[a])
@@ -12855,7 +12894,7 @@ ObjectMolecule *ObjectMoleculeReadMMDStr(PyMOLGlobals * G, ObjectMolecule * I,
     I = (ObjectMolecule *) ObjectMoleculeNew(G, discrete);
     atInfo = I->AtomInfo;
   } else {
-    atInfo = VLAMalloc(10, sizeof(AtomInfoType), 2, true);
+    atInfo = (AtomInfoType*) VLAMalloc(10, sizeof(AtomInfoType), 2, true);
     /* autozero here is important */
   }
 
@@ -13023,7 +13062,7 @@ ObjectMolecule *ObjectMoleculeReadPDBStr(PyMOLGlobals * G, ObjectMolecule * I,
 	  atInfo = I->AtomInfo;
         isNew = true;
       } else {
-        atInfo = VLAMalloc(10, sizeof(AtomInfoType), 2, true);  /* autozero here is important */
+        atInfo = (AtomInfoType*) VLAMalloc(10, sizeof(AtomInfoType), 2, true);  /* autozero here is important */
 	CHECKOK(ok, atInfo);
         isNew = false;
       }
@@ -13477,4 +13516,58 @@ void ObjectMoleculeAdjustDiscreteAtmIdx(ObjectMolecule *I, int *lookup, int nAto
       }
     }
   }   
+}
+
+static int AtomInfoInOrder(PyMOLGlobals * G, AtomInfoType * atom, int atom1, int atom2)
+{
+  return (AtomInfoCompare(G, atom + atom1, atom + atom2) <= 0);
+}
+
+static int AtomInfoInOrderIgnoreHet(PyMOLGlobals * G, AtomInfoType * atom,
+    int atom1, int atom2)
+{
+  return (AtomInfoCompareIgnoreHet(G, atom + atom1, atom + atom2) <= 0);
+}
+
+static int AtomInfoInOrigOrder(PyMOLGlobals * G, AtomInfoType * atom,
+    int atom1, int atom2)
+{
+  if(atom[atom1].rank == atom[atom2].rank)
+    return (AtomInfoCompare(G, atom + atom1, atom + atom2) <= 0);
+  return (atom[atom1].rank < atom[atom2].rank);
+}
+
+int *AtomInfoGetSortedIndex(PyMOLGlobals * G, ObjectMolecule * obj,
+    AtomInfoType * rec, int n, int **outdex)
+{
+  int *index;
+  int a;
+  CSetting *setting = NULL;
+
+  th_assert(1, index = Alloc(int, n + 1));
+  th_assert(1, (*outdex) = Alloc(int, n + 1));
+
+  if(obj && obj->DiscreteFlag) {
+    for(a = 0; a < n; a++)
+      index[a] = a;
+  } else {
+    if(obj)
+      setting = obj->Obj.Setting;
+
+    UtilSortIndexGlobals(G, n, rec, index, (UtilOrderFnGlobals *) (
+        SettingGet_b(G, setting, NULL, cSetting_retain_order) ?
+          AtomInfoInOrigOrder :
+        SettingGet_b(G, setting, NULL, cSetting_pdb_hetatm_sort) ?
+          AtomInfoInOrder :
+          AtomInfoInOrderIgnoreHet));
+  }
+
+  for(a = 0; a < n; a++)
+    (*outdex)[index[a]] = a;
+
+  return index;
+
+th_except1:
+  FreeP(index);
+  return NULL;
 }

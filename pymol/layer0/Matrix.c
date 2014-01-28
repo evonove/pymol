@@ -496,8 +496,6 @@ int *MatrixFilter(float cutoff, int window, int n_pass, int nv, float *v1, float
     copy3f(v2, center2);
     for(a = 1; a < nv; a++) {
       if(flag[a]) {
-        vv1 = v1 + 3 * a;
-        vv2 = v2 + 3 * a;
         add3f(v1, center1, center1);
         add3f(v2, center2, center2);
         cc++;
@@ -868,6 +866,20 @@ float MatrixFitRMSTTTf(PyMOLGlobals * G, int n, float *v1, float *v2, float *wt,
   double sumwt, tol;
   int a, b, c, maxiter;
   double t1[3], t2[3];
+
+  /* special case: just one atom pair */
+
+  if(n == 1) {
+    if(ttt) {
+      for(a = 1; a < 11; a++)
+        ttt[a] = 0.0F;
+      for(a = 0; a < 12; a += 5)
+        ttt[a] = 1.0F;
+      for(a = 0; a < 3; a++)
+        ttt[a + 12] = v2[a] - v1[a];
+    }
+    return 0.0F;
+  }
 
   /* Initialize arrays. */
 
@@ -1502,11 +1514,8 @@ double d_sign(doublereal * a, doublereal * b)
 
 static doublereal c_b126 = 0.;
 
-static int balanc_(nm, n, a, low, igh, scale)
-     integer *nm, *n;
-     doublereal *a;
-     integer *low, *igh;
-     doublereal *scale;
+static int balanc_(integer * nm, integer * n, doublereal * a, integer * low,
+                       integer * igh, doublereal * scale)
 {
 
 
@@ -1855,11 +1864,8 @@ L280:
   return 0;
 }                               /* balanc_ */
 
-static int balbak_(nm, n, low, igh, scale, m, z__)
-     integer *nm, *n, *low, *igh;
-     doublereal *scale;
-     integer *m;
-     doublereal *z__;
+static int balbak_(integer * nm, integer * n, integer * low, integer * igh,
+                   doublereal * scale, integer * m, doublereal * z__)
 {
 
 
@@ -2024,8 +2030,8 @@ L200:
   return 0;
 }                               /* balbak_ */
 
-static int cdiv_(ar, ai, br, bi, cr, ci)
-     doublereal *ar, *ai, *br, *bi, *cr, *ci;
+static int cdiv_(doublereal * ar, doublereal * ai, doublereal * br, doublereal * bi,
+                 doublereal * cr, doublereal * ci)
 {
 
 
@@ -2058,10 +2064,8 @@ static int cdiv_(ar, ai, br, bi, cr, ci)
   return 0;
 }                               /* cdiv_ */
 
-static int elmhes_(nm, n, low, igh, a, int__)
-     integer *nm, *n, *low, *igh;
-     doublereal *a;
-     integer *int__;
+static int elmhes_(integer * nm, integer * n, integer * low, integer * igh,
+                   doublereal * a, integer * int__)
 {
 
 
@@ -2262,11 +2266,8 @@ L200:
   return 0;
 }                               /* elmhes_ */
 
-static int eltran_(nm, n, low, igh, a, int__, z__)
-     integer *nm, *n, *low, *igh;
-     doublereal *a;
-     integer *int__;
-     doublereal *z__;
+static int eltran_(integer * nm, integer * n, integer * low, integer * igh,
+                   doublereal * a, integer * int__, doublereal * z__)
 {
   /* System generated locals */
   integer a_dim1, a_offset, z_dim1, z_offset, i__1, i__2;
@@ -2430,10 +2431,8 @@ L200:
   return 0;
 }                               /* eltran_ */
 
-static int hqr_(nm, n, low, igh, h__, wr, wi, ierr)
-     integer *nm, *n, *low, *igh;
-     doublereal *h__, *wr, *wi;
-     integer *ierr;
+static int hqr_(integer * nm, integer * n, integer * low, integer * igh,
+                doublereal * h__, doublereal * wr, doublereal * wi, integer * ierr)
 {
   /* System generated locals */
   integer h_dim1, h_offset, i__1, i__2, i__3;
@@ -2903,10 +2902,9 @@ L1001:
   return 0;
 }                               /* hqr_ */
 
-static int hqr2_(nm, n, low, igh, h__, wr, wi, z__, ierr)
-     integer *nm, *n, *low, *igh;
-     doublereal *h__, *wr, *wi, *z__;
-     integer *ierr;
+static int hqr2_(integer * nm, integer * n, integer * low, integer * igh,
+                 doublereal * h__, doublereal * wr, doublereal * wi, doublereal * z__,
+                 integer * ierr)
 {
   /* System generated locals */
   integer h_dim1, h_offset, z_dim1, z_offset, i__1, i__2, i__3;

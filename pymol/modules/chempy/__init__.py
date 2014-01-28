@@ -60,6 +60,14 @@ class Atom:
 
     def get_implicit_valence(self):
         return implicit_valence[self.symbol]
+
+    def get_free_valence(self, npaired):
+        try:
+            maxfree = implicit_valence[self.symbol][0]
+        except KeyError:
+            print "unknown implicit_valence for", self.symbol
+            return 0
+        return max(0, maxfree - npaired + self.formal_charge)
     
     def has(self,attr):
         return self.__dict__.has_key(attr) 
@@ -164,10 +172,11 @@ class Storage:
         return result
 
     def toFile(self,indexed,fname,**params):
+        lines = self.toList(indexed, **params)
         if feedback['io']:
             print ' chempy: writing "%s".' % fname
         fp = open(fname,'w')
-        result = fp.writelines(apply(self.toList,(indexed,),params))
+        result = fp.writelines(lines)
         fp.close()
 
 class PseudoFile:

@@ -403,6 +403,8 @@ CGO *CGONew(PyMOLGlobals * G)
 #endif
   I->enable_shaders = 0;
   I->no_pick = 0;
+  I->current_pick_color_index = 0;
+  I->current_pick_color_bond = cPickableNoPick;
   return (I);
 }
 
@@ -426,6 +428,8 @@ CGO *CGONewSized(PyMOLGlobals * G, int size)
 #endif
   I->enable_shaders = 0;
   I->no_pick = 0;
+  I->current_pick_color_index = 0;
+  I->current_pick_color_bond = cPickableNoPick;
   return (I);
 }
 
@@ -1872,7 +1876,9 @@ CGO *CGOCombineBeginEnd(CGO * I, int est)
       break;
     case CGO_BEGIN:
       {
-	float *origpc = pc;
+	float *origpc = pc, firstColor[3], firstAlpha;
+	char hasFirstColor = 0, hasFirstAlpha = 0;
+	int ncolors = 0;
 	int nverts = 0, damode = CGO_VERTEX_ARRAY, err = 0, end = 0;
 	int mode = CGO_read_int(pc);
 
@@ -1886,6 +1892,13 @@ CGO *CGOCombineBeginEnd(CGO * I, int est)
 	    damode |= CGO_NORMAL_ARRAY;
 	    break;
 	  case CGO_COLOR:
+	    if (!nverts){
+	      hasFirstColor = 1;
+	      firstColor[0] = pc[0]; firstColor[1] = pc[1]; firstColor[2] = pc[2];
+	    } else {
+	      hasFirstColor = 0;
+	    } 
+	    I->color[0] = *pc; I->color[1] = *(pc + 1); I->color[2] = *(pc + 2);
 	    damode |= CGO_COLOR_ARRAY;
 	    break;
 	  case CGO_PICK_COLOR:
@@ -1902,6 +1915,13 @@ CGO *CGOCombineBeginEnd(CGO * I, int est)
 	    break;
 	  case CGO_ALPHA:
 	    I->alpha = *pc;
+	    if (!nverts){
+	      hasFirstAlpha = 1;
+	      firstAlpha = I->alpha;
+	    } else {
+	      hasFirstAlpha = 0;
+	    }
+	    damode |= CGO_COLOR_ARRAY;
 	  default:
 	    break;
 	  }
@@ -1914,6 +1934,15 @@ CGO *CGOCombineBeginEnd(CGO * I, int est)
 	  float *normalVals, *colorVals = 0, *nxtVals = 0, *pickColorVals = 0, *accessibilityVals = 0;
 	  uchar *pickColorValsUC;
 	  short notHaveValue = 0, nxtn = 3;
+	  if (hasFirstAlpha || hasFirstColor){
+	    if (hasFirstAlpha){
+	      CGOAlpha(cgo, firstAlpha);
+	    }
+	    if (hasFirstColor){
+	      CGOColorv(cgo, firstColor);
+	    }
+	    damode ^= CGO_COLOR_ARRAY;
+	  }
 	  nxtVals = vertexVals = CGODrawArrays(cgo, mode, damode, nverts);
 	  ok &= vertexVals ? true : false;
 	  if (!ok)
@@ -1947,8 +1976,10 @@ CGO *CGOCombineBeginEnd(CGO * I, int est)
 	      notHaveValue = notHaveValue ^ CGO_NORMAL_ARRAY;
 	      break;
 	    case CGO_COLOR:
-	      colorVals[plc] = pc[0]; colorVals[plc+1] = pc[1]; colorVals[plc+2] = pc[2]; colorVals[plc+3] = I->alpha;
-	      notHaveValue = notHaveValue ^ CGO_COLOR_ARRAY;
+	      if (colorVals){
+		colorVals[plc] = pc[0]; colorVals[plc+1] = pc[1]; colorVals[plc+2] = pc[2]; colorVals[plc+3] = I->alpha;
+		notHaveValue = notHaveValue ^ CGO_COLOR_ARRAY;
+	      }
 	      break;
 	    case CGO_PICK_COLOR:
 	      /* TODO need to move uchar and index/bond separately into pickColorVals */
@@ -2395,12 +2426,11 @@ void SetVertexValuesForVBO(PyMOLGlobals * G, CGO *cgo, int arrays, int pl, int p
     }
   }
   if (arrays & CGO_PICK_COLOR_ARRAY){
-    CGO_put_int(pickColorVals + pcc, CGO_get_int(pickColorValsDA + pcco));
-    CGO_put_int(pickColorVals + pcc + 1, CGO_get_int(pickColorValsDA + pcco + 1));
-  } else {
-    CGO_put_int(pickColorVals + pcc, cgo->current_pick_color_index);
-    CGO_put_int(pickColorVals + pcc + 1, cgo->current_pick_color_bond);
+    cgo->current_pick_color_index = CGO_get_int(pickColorValsDA + pcco);
+    cgo->current_pick_color_bond = CGO_get_int(pickColorValsDA + pcco + 1);
   }
+  CGO_put_int(pickColorVals + pcc, cgo->current_pick_color_index);
+  CGO_put_int(pickColorVals + pcc + 1, cgo->current_pick_color_bond);
   if (arrays & CGO_ACCESSIBILITY_ARRAY){
     accessibilityVals[pl/3] = accessibilityValsDA[cnt];
   }
@@ -3033,7 +3063,7 @@ int CGOProcessScreenCGOtoArrays(PyMOLGlobals * G, float *pcarg, CGO *cgo, float 
 		      colorValsUC[cpl+2] = CLIP_COLOR_VALUE(cgo->color[2]); colorValsUC[cpl+3] = CLIP_COLOR_VALUE(cgo->alpha);
 		    } else {
 		      colorVals[cpl] = cgo->color[0]; colorVals[cpl+1] = cgo->color[1];
-		      colorVals[cpl+2] = cgo->color[2]; colorVals[cpl+3] = cgo->color[3];
+		      colorVals[cpl+2] = cgo->color[2]; colorVals[cpl+3] = cgo->alpha;
 		    }
 		    pl++; ipl++;
 		  } else {
@@ -4330,7 +4360,6 @@ CGO *CGOOptimizeGLSLCylindersToVBOIndexedImpl(CGO * I, int est, short no_color, 
    second vertex is cylinder axis vector
    third vertex is a corner flag (radius, right, up)
 */
-
   if (num_total_cylinders>0) {
     float *originVals = 0, *axisVals = 0;
     float *colorVals = 0, *color2Vals = 0;
@@ -5001,6 +5030,10 @@ CGO *CGOSimplify(CGO * I, int est)
   while(ok && (op = (CGO_MASK & CGO_read_int(pc)))) {
     save_pc = pc;
     switch (op) {
+    case CGO_PICK_COLOR:
+      cgo->current_pick_color_index = CGO_get_int(pc);
+      cgo->current_pick_color_bond = CGO_get_int(pc + 1);
+      break;
     case CGO_SHADER_CYLINDER:
       {
 	float v2[3];
@@ -5183,7 +5216,7 @@ CGO *CGOSimplify(CGO * I, int est)
 		colorVals[plc] = tmp_ptr[0]; colorVals[plc+1] = tmp_ptr[1]; 
 		colorVals[plc+2] = tmp_ptr[2]; colorVals[plc+3] = tmp_ptr[3]; 
 	      }
-	      if (notHaveValue & CGO_PICK_COLOR_ARRAY){
+	      if (pickColorVals){
 		CGO_put_int(pickColorVals + pla * 2, cgo->current_pick_color_index);
 		CGO_put_int(pickColorVals + pla * 2 + 1, cgo->current_pick_color_bond);
 	      }
@@ -6625,7 +6658,7 @@ static void CGO_gl_draw_buffers_indexed(CCGORenderer * I, float **pc){
   CShaderPrg * shaderPrg;
   int attr_a_Vertex, attr_a_Normal, attr_a_Color, attr_a_Accessibility;
   GLenum err ;
-  CHECK_GL_ERROR_OK("beginning of CGO_gl_draw_buffers_indexed\n");
+  CHECK_GL_ERROR_OK("beginning of CGO_gl_draw_buffers_indexed returns err=%d\n");
   if (I->enable_shaders){
     shaderPrg = CShaderPrg_Enable_DefaultShader(I->G);
   } else {
@@ -6751,9 +6784,9 @@ static void CGO_gl_draw_buffers_indexed(CCGORenderer * I, float **pc){
     mode = CGOConvertDebugMode(I->debug, mode);
   }
 
-  CHECK_GL_ERROR_OK("CGO_gl_draw_buffers_indexed: before glDrawElements\n");
+  CHECK_GL_ERROR_OK("CGO_gl_draw_buffers_indexed: before glDrawElements returns err=%d\n");
   glDrawElements(mode, nindices, GL_C_INT_ENUM, 0);
-  CHECK_GL_ERROR_OK("CGO_gl_draw_buffers_indexed: after glDrawElements\n");
+  CHECK_GL_ERROR_OK("CGO_gl_draw_buffers_indexed: after glDrawElements returns err=%d\n");
 
 #ifdef OPENGL_ES_2
   if (I->use_shader){
@@ -6798,7 +6831,7 @@ static void CGO_gl_draw_buffers_indexed(CCGORenderer * I, float **pc){
     CShaderPrg_Disable(shaderPrg);
   }
 #endif
-CHECK_GL_ERROR_OK("CGO_gl_draw_buffers_indexed: end\n");
+CHECK_GL_ERROR_OK("CGO_gl_draw_buffers_indexed: end returns err=%d\n");
 }
 
 static void CGO_gl_draw_buffers_not_indexed(CCGORenderer * I, float **pc){

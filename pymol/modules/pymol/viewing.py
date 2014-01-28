@@ -1032,12 +1032,12 @@ PYMOL API
                     if not quiet:
                         print " get_viewport: data written to log file."
                     _self.log("_ viewport (\\\n","cmd.viewport((\\\n")
-                    _self.log("_  %14.9f, %14.9f ))\n"% r)
+                    _self.log("_  %14.9f, %14.9f )\n"% r)
                     if output<2: # suppress if we have a log file open
                         output=0
                 if output and (not quiet) and (output<3):
                     print "### cut below here and paste into script ###"
-                    print "viewport ( %14.9f, %14.9f )"% r
+                    print "viewport %4d, %4d"% r
                     print "### cut above here and paste into script ###"
             if output==3:
                 return ("viewport ( %14.9f, %14.9f )\n"% r)
@@ -1575,7 +1575,10 @@ SEE ALSO
                 elif action=='clear':
                     if key=='auto':
                         key = setting.get("scene_current_name",_self=_self)
-                    key = pymol._scene_dict_sc.auto_err(key,'scene')
+                        if not key and _feedback(fb_module.scene,fb_mask.actions,_self):
+                            print " scene: no current scene"
+                    else:
+                        key = pymol._scene_dict_sc.auto_err(key,'scene')
                     if pymol._scene_dict.has_key(key):
                         scene_list = pymol._scene_dict[key]
                         if len(scene_list)>3:
