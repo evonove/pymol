@@ -237,7 +237,7 @@ typedef struct AtomInfoType {
   signed char hb_donor;
   signed char hb_acceptor;
   signed char has_setting;      /* setting based on unique_id */
-  Chain chain;
+  ov_word chain;
   Chain alt;
   ResIdent resi;
   SegIdent segi;
@@ -252,6 +252,7 @@ typedef struct AtomInfoType {
 void AtomInfoFree(PyMOLGlobals * G);
 int AtomInfoInit(PyMOLGlobals * G);
 void BondTypeInit(BondType *bt);
+void BondTypeInit2(BondType *bt, int i1, int i2, int order);
 void AtomInfoPurge(PyMOLGlobals * G, AtomInfoType * ai);
 void AtomInfoCopy(PyMOLGlobals * G, AtomInfoType * src, AtomInfoType * dst);
 int AtomInfoReserveUniqueID(PyMOLGlobals * G, int unique_id);

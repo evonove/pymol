@@ -28,7 +28,6 @@ if __name__=='pymol.creating':
           DEFAULT_ERROR, DEFAULT_SUCCESS, is_ok, is_error, \
           is_tuple
     import tempfile
-    from colorramping import ColorRamp
     import sys
 
     from chempy import fragments
@@ -554,53 +553,7 @@ SEE ALSO
         if _self._raising(r,_self): raise pymol.CmdException         
         return r
 
-
-    def get_volume_palette(name):
-        r = ColorRamp(360)
-        r.addColor(0, (0,0,0,0))
-        r.addColor(359, (0,0,0,0))
-        print "Get volume pallete number: %d\n", name
-        if name==-1:
-            r.addColor(345, (0, 0.2, 0.7, 0.4))
-            r.addColor(315, (0, 0.2, 0.7, 0.1))
-        elif name==-2:
-            pass
-        elif name==-3:
-            pass
-        elif name==-4:
-            pass
-        elif name==-5:
-            pass
-
-        return r.getRamp()
-
-
-
-    def volume_color(name, colors, _self=cmd):
-        """
-DESCRIPTION -- untested do not use
-ALSO -- this belongs in a different module
-        """
-        if not (is_list(colors) or is_tuple(colors)):
-            colors = safe_list_eval(colors)
-        # tuple of tuples to list of float
-        cList = []
-        map(lambda x: cList.extend(x), colors)
-        cList = map(lambda x: float(x), cList)
-
-        try:
-            _self.lock(_self)
-            r = _cmd.volume_color(_self._COb, str(name), cList)
-        finally:
-            _self.unlock(r,_self)
-        
-        if _self._raising(r,_self): raise pymol.CmdException
-
-        # unlock and then use this to differentiate our viz
-        return r        
-
-
-    def volume(name, map, level=1.0, selection='', buffer=0.0,
+    def volume(name, map, ramp='', selection='', buffer=0.0,
                 state=1, carve=None, source_state=0, quiet=1, _self=cmd):
         '''
 DESCRIPTION
@@ -609,13 +562,15 @@ DESCRIPTION
 
 USAGE
 
-    volume name, map, [, selection [, carve ]]]]
+    volume name, map [, ramp [, selection [, buffer [, state [, carve ]]]]]
 
 ARGUMENTS
 
     name = the name for the new volume object.
 
     map = the name of the map object to use for computing the volume.
+
+    ramp = str: named color ramp {default: }
 
     selection = an atom selection about which to display the mesh with
         an additional "buffer" (if provided).
@@ -637,7 +592,7 @@ EXAMPLE
 
 SEE ALSO
 
-    map_new, isosurface, isomesh
+    map_new, isosurface, isomesh, volume_color, volume_ramp_new
 
 '''
         r = DEFAULT_ERROR
@@ -653,6 +608,13 @@ SEE ALSO
 
         if carve==None:
             carve=0.0
+
+        try:
+            # legacy
+            level = float(ramp)
+            ramp = ''
+        except (ValueError, TypeError):
+            level = 0.0
         
         try:
             _self.lock(_self)
@@ -667,6 +629,9 @@ SEE ALSO
             _self.unlock(r,_self)
         
         if _self._raising(r,_self): raise pymol.CmdException
+
+        if ramp:
+            _self.volume_color(name, ramp)
 
         # unlock and then use this to differentiate our viz
         return r
@@ -1010,7 +975,7 @@ USAGE
 
     def create(name, selection, source_state=0,
                target_state=0, discrete=0, zoom=-1, quiet=1,
-               singletons=0, extract=None, _self=cmd):
+               singletons=0, extract=None, copy_properties=False, _self=cmd):
         '''
 DESCRIPTION
 
@@ -1050,6 +1015,8 @@ SEE ALSO
         target_state = int(target_state)
         if target_state == -1:
             target_state = _self.count_states('?' + name) + 1
+        if copy_properties:
+            print ' Warning: properties are not supported in Open-Source PyMOL'
         # preprocess selection
         selection = selector.process(selection)
         #      
@@ -1102,12 +1069,15 @@ SEE ALSO
 
     pseudoatom_mode_sc =  Shortcut(pseudoatom_mode_dict.keys())
 
-    unquote_re = re.compile(r"'[^']*'|\"[^\"]*\"")
+    unquote_re = re.compile(r"r?('.*'|\".*\")$")
     
     def unquote(s):
         s = str(s)
-        if unquote_re.search(s):
-            return s[1:-1]
+        if unquote_re.match(s):
+            try:
+                return cmd.safe_eval(s)
+            except SyntaxError:
+                print " Warning: unquote failed for", repr(s)
         return s
     
     def pseudoatom(object='', selection='', name='PS1', resn='PSD', resi='1', chain='P',
@@ -1167,4 +1137,68 @@ NOTES
         if _self._raising(r,_self): raise pymol.CmdException                                    
         return r
         
+    def join_states(name, selection='all', mode=2, zoom=0, quiet=1, _self=cmd):
+        '''
+DESCRIPTION
+
+    The reverse of split_states. Create a multi-state object from a
+    selection which spans multiple objects.
+
+ARGUMENTS
+
+    name = string: name of object to create or modify
+
+    selection = string: atoms to include in the new object
+
+    mode = int: how to match states {default: 2}
+      0: Create discrete object, input objects can be (totally) different
+      1: Assume identical topology (same number of atoms and matching atom
+         identifiers) in all input objects
+      2: Assume matching atom identifiers in all input objects, but also
+         check for missing atoms and only include atoms that are present
+         in all input objects
+      3: match atoms by sequence alignment, slowest but most robust option
+
+EXAMPLE
+
+    fragment ala
+    fragment his
+    join_states multi, (ala|his), mode=0
+        '''
+
+        mode, quiet = int(mode), int(quiet)
+
+        if mode == 3:
+            aln_name = _self.get_unused_name('_join_states_aln')
+
+        sele_name = _self.get_unused_name('_join_states_sele1')
+        msel_name = _self.get_unused_name('_join_states_sele2')
+
+        _self.select(sele_name, selection, 0)
+        models = _self.get_object_list('?' + sele_name)
+
+        for i, model in enumerate(models):
+            _self.select(msel_name, '?%s & ?%s' % (sele_name, model), 0)
+            if mode == 2 and i > 0:
+                _self.remove('?%s & ! ((alt A+) & (?%s in ?%s))' % (name, name, msel_name))
+                _self.create(name, '?%s in ?%s' % (msel_name, name), 0, -1, 0, 0, quiet)
+            elif mode == 3 and i > 0:
+                _self.align(msel_name, name, cycles=0, transform=0, object=aln_name)
+                _self.select(msel_name, '?%s & ?%s' % (sele_name, aln_name), 0)
+                _self.remove('?%s and not ?%s' % (name, aln_name))
+                _self.delete(aln_name)
+
+                n = _self.count_states('?' + name)
+                for j in range(_self.count_states('?' + model)):
+                    _self.create(name, name, 1, -1, 0, 0, quiet)
+                    _self.update(name, '?' + msel_name, n + j + 1, 1, 0, quiet)
+            else:
+                _self.create(name, msel_name, 0, -1, mode == 0, 0, quiet)
+
+        _self.delete(sele_name)
+        _self.delete(msel_name)
+        _self.rebuild('?' + name)
+
+        if int(zoom):
+            _self.zoom(name, state=0)
 

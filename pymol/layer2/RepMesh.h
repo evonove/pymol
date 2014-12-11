@@ -19,6 +19,7 @@ Z* -------------------------------------------------------------------
 
 #include"Rep.h"
 #include"CoordSet.h"
+#include"CGO.h"
 
 Rep *RepMeshNew(CoordSet * cset, int state);
 void RepMeshInit(void);

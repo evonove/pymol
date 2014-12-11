@@ -50,17 +50,20 @@ def CCompiler_compile(self, sources, output_dir=None, macros=None,
 # handle extra arguments
 class options:
     osx_frameworks = False
+    jobs = int(os.getenv('JOBS', 0))
+    no_libxml = False
 
 try:
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('--osx-frameworks', action="store_true")
+    parser.add_argument('--jobs', '-j', type=int)
+    parser.add_argument('--no-libxml', action="store_true")
     options, sys.argv[1:] = parser.parse_known_args(namespace=options)
 except ImportError:
     print "argparse not available"
 
-jobs = int(os.getenv('JOBS', 0))
-pmap = map if jobs == 1 else multiprocessing.pool.ThreadPool(jobs or None).map
+pmap = map if options.jobs == 1 else multiprocessing.pool.ThreadPool(options.jobs or None).map
 
 distutils.ccompiler.CCompiler.compile = CCompiler_compile
 
@@ -125,6 +128,9 @@ class install_pymol(install):
         else:
            launch_script = 'pymol'
 
+        self.mkpath(self.install_scripts)
+        launch_script = os.path.join(self.install_scripts, launch_script)
+
         python_exe = os.path.abspath(sys.executable)
         pymol_file = self.unchroot(os.path.join(self.install_libbase, 'pymol', '__init__.py'))
         pymol_path = self.unchroot(self.pymol_path)
@@ -142,8 +148,6 @@ class install_pymol(install):
                 out.write('"%s" "%s" "$@"' % (python_exe, pymol_file) + os.linesep)
 
         os.chmod(launch_script, 0755)
-        self.mkpath(self.install_scripts)
-        self.copy(launch_script, self.install_scripts)
 
 #============================================================================
 
@@ -163,18 +167,35 @@ pymol_src_dirs = [
     "layer4",
     "layer5",
     "modules/cealign/src",
-    "modules/cealign/src/tnt",
     generated_dir,
 ]
 
 def_macros = [
+    ("_PYMOL_LIBPNG", None),
+    ("_PYMOL_INLINE", None),
+    ("_PYMOL_OPENGL_SHADERS", None),
+    ("_PYMOL_CGO_DRAWARRAYS", None),
+    ("_PYMOL_CGO_DRAWBUFFERS", None),
+    ("_PYMOL_GL_CALLLISTS", None),
 ]
 
 libs = []
 pyogl_libs = []
 lib_dirs = []
-ext_comp_args = []
+ext_comp_args = [
+    # warnings as errors
+    "-Werror=implicit-function-declaration",
+    "-Werror=declaration-after-statement",
+    # suppress warnings
+    # legacy stuff
+    '-Wno-write-strings',
+    '-Wno-unused-function',
+    '-Wno-empty-body',
+    '-Wno-char-subscripts',
+]
 ext_link_args = []
+data_files = []
+ext_modules = []
 
 if False:
     # VMD plugin support
@@ -185,6 +206,13 @@ if False:
     def_macros += [
         ("_PYMOL_VMD_PLUGINS", None),
     ]
+
+if not options.no_libxml:
+    # COLLADA support
+    def_macros += [
+        ("_HAVE_LIBXML", None)
+    ]
+    libs += ["xml2"]
 
 inc_dirs = list(pymol_src_dirs)
 
@@ -219,15 +247,9 @@ elif sys.platform=='cygwin':
 else: # unix style (linux, mac, ...)
 
     def_macros += [
-            ("_PYMOL_LIBPNG",None),
             ("_PYMOL_FREETYPE",None),
-            ("_PYMOL_INLINE",None),
-            ("_PYMOL_OPENGL_SHADERS",None),
             ("NO_MMLIBS",None),
-            ("_PYMOL_CGO_DRAWARRAYS",None),
-            ("_PYMOL_CGO_DRAWBUFFERS",None),
             ("_CGO_DRAWARRAYS",None),
-            ("_PYMOL_GL_CALLLISTS",None),
             ("OPENGL_ES_2",None),
             ]
 
@@ -250,7 +272,7 @@ else: # unix style (linux, mac, ...)
         prefix_path = ["/usr", "/usr/X11", "/opt/local", "/sw"]
 
     for prefix in prefix_path:
-        inc_dirs += filter(os.path.isdir, [prefix + s for s in ["/include", "/include/freetype2"]])
+        inc_dirs += filter(os.path.isdir, [prefix + s for s in ["/include", "/include/freetype2", "/include/libxml2"]])
         lib_dirs += filter(os.path.isdir, [prefix + s for s in ["/lib64", "/lib"]])
 
     if sys.platform == 'darwin' and options.osx_frameworks:
@@ -284,9 +306,26 @@ def get_packages(base, parent='', r=None):
             get_packages(base, join(parent, name), r)
     return r
 
-def pyogl_extension(name, sources):
-    return Extension(name, sources, inc_dirs, def_macros, None, lib_dirs, pyogl_libs,
-            extra_compile_args=ext_comp_args, extra_link_args=ext_link_args)
+package_dir = dict((x, os.path.join(base, x))
+        for base in ['modules']
+        for x in get_packages(base))
+
+ext_modules += [
+    Extension("pymol._cmd",
+              get_sources(pymol_src_dirs),
+              include_dirs = inc_dirs,
+              libraries = libs,
+              library_dirs = lib_dirs,
+              define_macros = def_macros,
+              extra_link_args = ext_link_args,
+              extra_compile_args = ext_comp_args,
+    ),
+
+    Extension("chempy.champ._champ",
+        get_sources(['contrib/champ']),
+        include_dirs=["contrib/champ"],
+    ),
+]
 
 distribution = setup ( # Distribution meta-data
     cmdclass  = {'install': install_pymol},
@@ -300,26 +339,12 @@ distribution = setup ( # Distribution meta-data
         "surfaces, and trajectories. It also includes molecular editing, "
         "ray tracing, and movies. Open Source PyMOL is free to everyone!"),
 
-    packages = get_packages('modules'),
-    package_dir = {'' : 'modules'},
-    package_data = {
+    package_dir = package_dir,
+    packages = list(package_dir),
+	package_data = {
         'pymol' : ['*.dll']
     },
-
-    ext_modules = [
-        Extension("pymol._cmd",
-                  get_sources(pymol_src_dirs),
-                  include_dirs = inc_dirs,
-                  libraries = libs,
-                  library_dirs = lib_dirs,
-                  define_macros = def_macros,
-                  extra_link_args = ext_link_args,
-                  extra_compile_args = ext_comp_args,
-        ),
-
-        Extension("chempy.champ._champ",
-            get_sources(['contrib/champ']),
-            include_dirs=["contrib/champ"],
-        ),
-    ],
+	
+    ext_modules = ext_modules,
+    data_files  = data_files
 )

@@ -37,6 +37,7 @@ typedef struct {
 #define SDOF_CLIP_MODE 1
 #define SDOF_DRAG_MODE 2
 
+// TODO: define remaining cSceneRay_MODEs (VRML, COLLADA, etc.)
 #define cSceneRay_MODE_IDTF 7
 
 #define cSceneImage_Default -1
@@ -85,7 +86,7 @@ int SceneRenderCached(PyMOLGlobals * G);
 int SceneSetFog(PyMOLGlobals *G, float *fog);
 void SceneRender(PyMOLGlobals * G, Picking * pick, int x, int y,
                  Multipick * smp, int oversize_width, int oversize_height,
-                 int click_side, int force_copy);
+                 int click_side, int force_copy, int just_background);
 void SceneSetFrame(PyMOLGlobals * G, int mode, int frame);
 int SceneSetNames(PyMOLGlobals * G, PyObject * list);
 int SceneGetFrame(PyMOLGlobals * G);
@@ -100,9 +101,12 @@ void SceneCountFrames(PyMOLGlobals * G);
 int SceneGetNFrame(PyMOLGlobals * G, int *has_movie);
 void SceneSetMatrix(PyMOLGlobals * G, float *);
 float *SceneGetMatrix(PyMOLGlobals * G);
+float *SceneGetModMatrix(PyMOLGlobals * G);
+float *SceneGetPmvMatrix(PyMOLGlobals * G);
 
 void SceneReshape(Block * block, int width, int height);
 float SceneGetScreenVertexScale(PyMOLGlobals * G, float *v1);
+float SceneGetRawDepth(PyMOLGlobals * G, float *v1);
 
 void SceneTest(PyMOLGlobals * G);
 void SceneIdle(PyMOLGlobals * G);
@@ -145,7 +149,7 @@ void SceneRotateScaled(PyMOLGlobals * G, float rx, float ry, float rz, int sdof_
 void SceneClip(PyMOLGlobals * G, int plane, float movement, char *sele, int state);
 void SceneGetImageSize(PyMOLGlobals * G, int *width, int *height);
 void SceneGetImageSizeFast(PyMOLGlobals * G, int *width, int *height);
-void SceneGetImageSizeFastAdjustForGrid(PyMOLGlobals * G, int *width, int *height);
+float SceneGetGridAspectRatio(PyMOLGlobals * G);
 void SceneScale(PyMOLGlobals * G, float scale);
 void SceneResetNormalCGO(PyMOLGlobals * G, CGO *cgo, int lines);
 void SceneResetNormal(PyMOLGlobals * G, int lines);
@@ -177,9 +181,9 @@ void SceneRestartSweepTimer(PyMOLGlobals * G);
 int SceneViewEqual(SceneViewType left, SceneViewType right);
 void SceneToViewElem(PyMOLGlobals * G, CViewElem * elem, char *scene_name);
 void SceneFromViewElem(PyMOLGlobals * G, CViewElem * elem, int dirty);
-void SceneGetPos(PyMOLGlobals * G, float *pos);
+void SceneGetCenter(PyMOLGlobals * G, float *pos);
 void SceneGetWidthHeight(PyMOLGlobals * G, int *width, int *height);
-void SceneGetViewPortWidthHeight(PyMOLGlobals * G, int *width, int *height);
+void SceneGetWidthHeightStereo(PyMOLGlobals * G, int *width, int *height);
 int SceneMultipick(PyMOLGlobals * G, Multipick * smp);
 void SceneInvalidateCopy(PyMOLGlobals * G, int free_buffer);
 
@@ -236,4 +240,7 @@ int SceneDrawImageOverlay(PyMOLGlobals * G  ORTHOCGOARG);
 int SceneIsGridModeActive(PyMOLGlobals * G);
 
 int SceneGetCopyType(PyMOLGlobals * G);
+
+int StereoIsAdjacent(PyMOLGlobals * G);
+
 #endif

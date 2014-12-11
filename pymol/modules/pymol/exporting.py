@@ -173,7 +173,7 @@ PYMOL API
         # we use (alt '' or alt 'A') because 'guide' picks up 
         # non-canonical structures: eg, 1ejg has residue 22 as a SER and 
         # PRO, which guide will report twice
-        _self.iterate("("+selection+") and polymer and name ca and (alt '' or alt 'A')",
+        _self.iterate("("+selection+") and polymer and name CA and alt +A",
                     "seq[model]=seq.get(model,[]);seq[model].append(resn)",space=dict)
         seq = dict['seq']
         result = []
@@ -450,8 +450,9 @@ PYMOL API
 NOTES
 
     The file format is automatically chosen if the extesion is one of
-    the supported output formats: pdb, pqr, mol, pkl, mmd, mmod, pov,
-    png, pse, aln, obj, mtl, or wrl.
+    the supported output formats: pdb, pqr, mol, sdf, pkl, pkla, mmd, out,
+    dat, mmod, pmo, pov, png, pse, psw, aln, fasta, obj, mtl, wrl, dae, idtf,
+    or mol2.
 
     If the file format is not recognized, then a PDB file is written
     by default.
@@ -466,18 +467,26 @@ SEE ALSO
 
     load, get_model
         '''
+        import cPickle
+        import gzip
+
+        do_gzip = False
+
         # preprocess selection
         input_selection = selection
         selection = selector.process(input_selection)
         #   
         r = DEFAULT_ERROR
         lc_filename=string.lower(filename)
+
         if format=='':
             format = 'unknown'
             # refactor following if/elif cascade 
             # with a dictionary lookup
             if re.search("\.pdb$|\.ent$",lc_filename):
                 format = 'pdb'
+            elif re.search("\.cif$",lc_filename):
+                format = 'cif'
             elif re.search("\.pqr$",lc_filename):
                 format = 'pqr'
             elif re.search("\.mol$",lc_filename):
@@ -486,8 +495,8 @@ SEE ALSO
                 format = 'sdf'
             elif re.search("\.pkl$",lc_filename):
                 format = 'pkl'
-            elif re.search("\.pkl$",lc_filename):
-                format = 'pkla'
+            elif re.search("\.xyz$",lc_filename):
+                format = 'xyz'
             elif re.search("\.mmd$",lc_filename):
                 format = 'mmod'
             elif re.search("\.out$",lc_filename):
@@ -504,6 +513,9 @@ SEE ALSO
                 format = 'png'
             elif re.search("\.pse$|\.psw$",lc_filename):
                 format = 'pse'
+            elif re.search("\.pze$|\.pzw$",lc_filename):
+                do_gzip = True
+                format = 'pse'
             elif re.search("\.aln$",lc_filename):
                 format = 'aln'
             elif re.search("\.fasta$",lc_filename):
@@ -514,6 +526,8 @@ SEE ALSO
                 format = 'mtl'
             elif re.search("\.wrl$",lc_filename):
                 format = 'wrl'
+            elif re.search("\.dae$",lc_filename):
+                format = 'dae'
             elif re.search("\.idtf$",lc_filename):
                 format = 'idtf'
             elif re.search("\.mol2$",lc_filename):
@@ -539,6 +553,13 @@ SEE ALSO
                     _self.unlock(r,_self=_self)
                 f.write(st)
                 f.close()
+                if not quiet:
+                    print " Save: wrote \""+filename+"\"."
+        if format=='cif': # mmCIF
+            with open(filename, "w") as f:
+                st = get_cifstr(selection, state, int(quiet), _self=_self)
+                f.write(st)
+                r = DEFAULT_SUCCESS
                 if not quiet:
                     print " Save: wrote \""+filename+"\"."
         elif format=='aln':
@@ -602,7 +623,10 @@ SEE ALSO
                 input_selection=''
             if not quiet:
                 print " Save: Please wait -- writing session file..."
-            io.pkl.toFile(_self.get_session(str(input_selection),int(partial),int(quiet)),filename)
+            session = _self.get_session(input_selection, partial, quiet)
+            contents = cPickle.dumps(session, 1)
+            with (gzip.open if do_gzip else open)(filename, 'wb') as handle:
+                handle.write(contents)
             r = DEFAULT_SUCCESS
             if not quiet:
                 print " Save: wrote \""+filename+"\"."
@@ -611,6 +635,22 @@ SEE ALSO
             r = DEFAULT_SUCCESS
             if not quiet:
                 print " Save: wrote \""+filename+"\"."
+        elif format == 'xyz':
+            state = int(state)
+            buf = []
+            for i, (selection, state) in enumerate(
+                    pymol.selecting.objsele_state_iter(selection, state)):
+                n_atoms_i = len(buf)
+                buf.append('') # natoms (deferred)
+                buf.append('') # comment
+                n = _self.iterate_state(state, selection,
+                        '_buf.append("%s %f %f %f" % (elem, x, y, z))',
+                        space={'_buf': buf})
+                buf[n_atoms_i] = str(n)
+            with open(filename, 'w') as handle:
+                print >> handle, '\n'.join(buf)
+            if not quiet:
+                print " Save: wrote %d states to \"%s\"." % (i + 1, filename)
         elif format=='sdf':
             state = int(state)
             sdf = SDF(filename,'w')
@@ -677,6 +717,16 @@ SEE ALSO
             if not quiet:
                 print " Save: wrote \""+filename+"\"."
             r = DEFAULT_SUCCESS
+        elif format=='dae':
+            txt = _self.get_collada()
+            if txt:
+                with open(filename, "w") as f:
+                    f.write(txt)
+                if not quiet:
+                    print " Save: wrote \""+filename+"\"."
+                r = DEFAULT_SUCCESS
+            elif not quiet:
+                print " COLLADA export failed, no file written"
         elif format=='idtf':
             tup = _self.get_idtf()
             f=open(filename,"w")
@@ -694,3 +744,118 @@ SEE ALSO
         if _self._raising(r,_self): raise QuietException
         return r
 
+    # mmCIF export
+
+    re_cifsimpledatavalue_match = re.compile(r'[^_#\$\'"\[\];]\S*$').match
+    re_cifendsinglequote_search = re.compile(r"'\s").search
+    re_cifenddoublequote_search = re.compile(r'"\s').search
+
+    def cifisreserved(s):
+        '''return true if s is a reserved cif keyword'''
+        return s in ('loop_', 'stop_', 'global_') or s[:5] in ('data_', 'save_')
+
+    def cifrepr(s):
+        '''returns s, if s is a simple data value, or some quoted version of s'''
+        if not s:
+            return '.'
+        if not cifisreserved(s) and re_cifsimpledatavalue_match(s) is not None:
+            return s
+        if '\n' not in s:
+            if re_cifendsinglequote_search(s) is None:
+                return "'" + s + "'"
+            if re_cifenddoublequote_search(s) is None:
+                return '"' + s + '"'
+        if '\n;' in s:
+            print ' Warning: CIF data value contains <newline><semicolon>'
+            s = s.replace('\n;', '\n ;')
+        return '\n;' + s + '\n;'
+
+    def get_cifstr(selection="all", state=-1, quiet=1, _self=cmd):
+        '''
+DESCRIPTION
+
+    API-only function which returns a mmCIF string.
+
+SEE ALSO
+
+    get_pdbstr
+        '''
+        tmp = _self.get_unused_name('_sele')
+        _self.select(tmp, selection, 0)
+
+        buf = ['# generated by PyMOL %s' % (_self.get_version()[0],)]
+
+        for model in _self.get_object_list('?' + tmp):
+            buf.append('''
+data_%s
+_entry.id %s
+''' % (model, cifrepr(model)))
+
+            symmetry = _self.get_symmetry(model)
+            if symmetry:
+                buf.append('''#
+_cell.entry_id %s
+_cell.length_a %f
+_cell.length_b %f
+_cell.length_c %f
+_cell.angle_alpha %f
+_cell.angle_beta %f
+_cell.angle_gamma %f
+_symmetry.entry_id %s
+_symmetry.space_group_name_H-M %s
+''' % (
+                    cifrepr(model),
+                    symmetry[0],
+                    symmetry[1],
+                    symmetry[2],
+                    symmetry[3],
+                    symmetry[4],
+                    symmetry[5],
+                    cifrepr(model),
+                    cifrepr(symmetry[6]),
+                ))
+
+        buf.append('''#
+loop_
+_atom_site.group_PDB
+_atom_site.id
+_atom_site.type_symbol
+_atom_site.label_atom_id
+_atom_site.label_alt_id
+_atom_site.label_comp_id
+_atom_site.label_asym_id
+_atom_site.label_entity_id
+_atom_site.label_seq_id
+_atom_site.pdbx_PDB_ins_code
+_atom_site.Cartn_x
+_atom_site.Cartn_y
+_atom_site.Cartn_z
+_atom_site.occupancy
+_atom_site.B_iso_or_equiv
+_atom_site.pdbx_formal_charge
+_atom_site.auth_asym_id
+_atom_site.pdbx_PDB_model_num
+''')
+
+        def callback(type_, ID, elem, name, alt, resn, segi, chain, resi,
+                x, y, z, q, b, formal_charge, state, entity_id):
+            resv, ins = (resi[:-1], resi[-1]) if resi[-1].isalpha() else (resi, '')
+            buf.append('%-6s %-3d %s %-3s '
+                    '%s %-3s %s %s '
+                    '%-2s %s %6.3f %6.3f %6.3f '
+                    '%4.2f %6.2f %d %s %d\n' % (
+                type_, ID, cifrepr(elem), cifrepr(name),
+                cifrepr(alt), cifrepr(resn), cifrepr(segi),
+                cifrepr(entity_id),
+                resv, cifrepr(ins), x, y, z,
+                q, b, formal_charge, cifrepr(chain), state,
+            ))
+
+        _self.iterate_state(state, '?%s & ?%s' % (model, tmp),
+            'callback(type, ID, elem, name, alt, resn, segi, chain, resi, '
+            'x, y, z, q, b, formal_charge, state, "")',
+            space={'callback': callback})
+
+        _self.delete(tmp)
+
+        return ''.join(buf)

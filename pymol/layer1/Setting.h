@@ -23,7 +23,6 @@ Z* -------------------------------------------------------------------
 
 typedef char SettingName[255];
 
-
 /* for atomic settings */
 
 typedef struct {
@@ -925,7 +924,7 @@ CSetting *SettingNewFromPyList(PyMOLGlobals * G, PyObject * list);
 #define cSetting_alignment_as_cylinders     692
 #define cSetting_cartoon_nucleic_acid_as_cylinders       693
 #define cSetting_cgo_shader_ub_flags        694
-#define cSetting_offscreen_rendering_for_antialiasing        695
+#define cSetting_antialias_shader        695
 #define cSetting_offscreen_rendering_multiplier        696
 #define cSetting_cylinder_shader_ff_workaround       697
 #define cSetting_surface_color_smoothing       698
@@ -970,6 +969,10 @@ CSetting *SettingNewFromPyList(PyMOLGlobals * G, PyObject * list);
 #define cSetting_pick_labels                             736
 #define cSetting_label_z_target                          737
 #define cSetting_session_embeds_data                     738
+#define cSetting_volume_mode                             739
+#define cSetting_trilines                                740
+#define cSetting_collada_export_lighting                 741
+#define cSetting_collada_geometry_mode                   742
 
 /* when you add a new setting also remember:
    layer1/Setting.c
@@ -980,6 +983,29 @@ CSetting *SettingNewFromPyList(PyMOLGlobals * G, PyObject * list);
 
 /* cSetting_ss_INIT must always be last setting_index +1 */
 
-#define cSetting_INIT                       739
+#define cSetting_INIT                       743
+
+/*
+ * State index iterator which iterates either over a single state (state >= 0),
+ * the current state (state == -2), or all states (state == -1). Takes
+ * static singletons into account. Zero iterations if state >= nstate.
+ *
+ * StateIterator iter(G, I->Obj.Setting, state, I->NState);
+ * while(iter.next()) {
+ *   printf("in state %d\n", iter.state);
+ * }
+ */
+class StateIterator {
+  int end;
+
+public:
+  int state;
+
+  StateIterator(PyMOLGlobals * G, CSetting * set, int state_, int nstate);
+
+  bool next() {
+    return (++state < end);
+  };
+};
 
 #endif

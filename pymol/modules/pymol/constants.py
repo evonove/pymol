@@ -22,7 +22,10 @@ file_ext_re = re.compile(string.join([
     r"\.pmo$|", # Experimental molecular object format
     r"\.moe$|", # MOE (proprietary)
     r"\.mae$|", # MAE (proprietary)
-    r"\.ccp4$|", # CCP4
+    r"\.cms$|", # CMS (proprietary)
+    r"\.idx$|", # Desmond Traj (proprietary)
+    r"\.spi$|\.spider$|", # Spider Map
+    r"\.ccp4$|\.mrc$|\.map$|", # CCP4
     r"\.top$|", # AMBER Topology
     r"\.trj$|", # AMBER Trajectory
     r"\.crd$|", # AMBER coordinate file
@@ -96,8 +99,13 @@ class loadable:
     dtr = 57      # DESRES / Desmond
     pze = 58
     pzw = 59
+    cif = 60      # C++ based CIF parser
+    cifstr = 61
+    spider = 62   # spider map
+    cms = 63
 
 _load2str = { loadable.pdb : loadable.pdbstr,
+              loadable.cif : loadable.cifstr,
               loadable.mol : loadable.molstr,
               loadable.xplor : loadable.xplorstr,
               loadable.mol2 : loadable.mol2str,
@@ -278,6 +286,11 @@ class fb_module:
     vfont                     =60
     # in layer0
     shader                    =61
+    shadermgr                 =62
+    shaderprg                 =63
+    session                   =64
+    # in layer1
+    property                  =65
 
     executive                 =70
     selector                  =71

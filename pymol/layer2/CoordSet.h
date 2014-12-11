@@ -27,13 +27,17 @@ Z* -------------------------------------------------------------------
 #define COORD_SET_HAS_ANISOU 0x01
 
 typedef struct CoordSet {
-  void (*fUpdate) (struct CoordSet * I, int state);
-  void (*fRender) (struct CoordSet * I, RenderInfo * info);
-  void (*fFree) (struct CoordSet * I);
-  void (*fEnumIndices) (struct CoordSet * I);
-  void (*fAppendIndices) (struct CoordSet * I, int existingAtoms);
-  int (*fExtendIndices) (struct CoordSet * I, int nAtom);
-  void (*fInvalidateRep) (struct CoordSet * I, int type, int level);
+  // methods (not fully refactored yet)
+  void fFree();
+
+  // methods
+  void update(int state);
+  void render(RenderInfo * info);
+  void enumIndices();
+  void appendIndices(int offset);
+  int extendIndices(int nAtom);
+  void invalidateRep(int type, int level);
+
   CObjectState State;
   ObjectMolecule *Obj;
   float *Coord;
@@ -41,7 +45,7 @@ typedef struct CoordSet {
   int *IdxToAtm;
   int *AtmToIdx;
   int NIndex, NAtIndex, prevNIndex, prevNAtIndex;
-  Rep *Rep[cRepCnt];            /* an array of pointers to representations */
+  ::Rep *Rep[cRepCnt];            /* an array of pointers to representations */
   int Active[cRepCnt];          /* active flags */
   int NTmpBond;                 /* optional, temporary (for coord set transfers) */
   BondType *TmpBond;            /* actual bond info is stored in ObjectMolecule */
@@ -95,6 +99,7 @@ typedef void (*fUpdateFn) (CoordSet *, int);
 int BondInOrder(BondType * a, int b1, int b2);
 int BondCompare(BondType * a, BondType * b);
 
+PyObject *CoordSetAsNumPyArray(CoordSet * cs, short copy);
 PyObject *CoordSetAsPyList(CoordSet * I);
 int CoordSetFromPyList(PyMOLGlobals * G, PyObject * list, CoordSet ** cs);
 
@@ -135,6 +140,5 @@ void CoordSetUpdateThread(CCoordSetUpdateThreadInfo * T);
 
 void LabPosTypeCopy(LabPosType * src, LabPosType * dst);
 void RefPosTypeCopy(RefPosType * src, RefPosType * dst);
-void CoordSetFree(CoordSet * I);
 
 #endif

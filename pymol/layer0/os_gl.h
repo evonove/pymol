@@ -3,12 +3,14 @@
 
 #include"os_gl_pre.h"
 
-#if defined(WIN32) || defined(_PYMOL_LIB)
+//#if defined(WIN32) || defined(_PYMOL_PURE_OPENGL_ES)
+#if 1
 #define ALLOCATE_ARRAY(tname,variablename, size) tname *variablename = (tname*) malloc(size * sizeof(tname));
-#else
-#define ALLOCATE_ARRAY(tname,variablename, size) tname *variablename = (tname*) malloc(size * sizeof(tname)); assert(variablename);
-#endif
 #define DEALLOCATE_ARRAY(variablename) free(variablename);
+#else
+#define ALLOCATE_ARRAY(tname,variablename, size) tname variablename[size];
+#define DEALLOCATE_ARRAY(variablename)
+#endif
 
 #if defined(OPENGL_ES_2)
 #define GL_LABEL_SCREEN_SHADER  0xfff0
@@ -79,12 +81,12 @@ void PyMOLDrawPixels(GLsizei width,
 
 #define P_GLUT_BUTTON_SCROLL_FORWARD  3
 #define P_GLUT_BUTTON_SCROLL_BACKWARD 4
-#define P_GLUT_DOUBLE_LEFT 5
-#define P_GLUT_DOUBLE_MIDDLE 6
-#define P_GLUT_DOUBLE_RIGHT 7
-#define P_GLUT_SINGLE_LEFT 8
-#define P_GLUT_SINGLE_MIDDLE 9
-#define P_GLUT_SINGLE_RIGHT 10
+#define P_GLUT_DOUBLE_LEFT 200
+#define P_GLUT_DOUBLE_MIDDLE 201
+#define P_GLUT_DOUBLE_RIGHT 202
+#define P_GLUT_SINGLE_LEFT 100
+#define P_GLUT_SINGLE_MIDDLE 101
+#define P_GLUT_SINGLE_RIGHT 102
 
 int PyMOLCheckOpenGLErr(char *pos);
 
@@ -128,7 +130,7 @@ int PyMOLCheckOpenGLErr(char *pos);
 #ifndef _PYMOL_OSX
 #include<GL/glut.h>
 #else
-#include<glut.h>
+#import <GLUT/glut.h>
 #endif
 
 #ifdef FREEGLUT

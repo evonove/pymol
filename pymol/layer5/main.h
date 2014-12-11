@@ -46,22 +46,23 @@ int MainSavingUnderWhileIdle(void);
 int MainFromPyList(PyObject * list);
 PyObject *MainAsPyList(void);
 
-void MainRepositionWindowDefault(PyMOLGlobals * G);
-
 void MainSetWindowVisibility(int mode);
 void MainMaximizeWindow(PyMOLGlobals * G);
 void MainSetWindowSize(PyMOLGlobals * G, int w, int h);
 void MainSetWindowPosition(PyMOLGlobals * G, int x, int y);
 void MainCheckWindowFit(PyMOLGlobals * G);
 
+#endif
 
 /* BEGIN PROPRIETARY CODE SEGMENT (see disclaimer in "os_proprietary.h") */
 #ifdef _MACPYMOL_XCODE
+void MainUnblock(void);
 int MainCheckRedundantOpen(char *file);
-void MainRunString(char *str);
-PyObject *MainGetStringResult(char *str);
-void MainDoCommand(char *str1);
-void MainRunCommand(char *str1);
+void MainRunString(const char *str);
+PyObject *MainGetStringResult(const char *str);
+void MainDoCommand(const char *str1);
+int MainFeedbackOut(char *st);
+void MainRunCommand(const char *str1);
 void MainMoviePrepareCopy(int *width, int *height, int *length);
 int MainMovieCopy(int frame, int width, int height, int rowbytes, void *ptr);
 void MainMovieCopyPrepare(int *width, int *height, int *length);
@@ -78,7 +79,5 @@ int MainSceneCopy(int width, int height, int rowbytes, void *ptr);
 
 int main_exec(int, char **);
 int main_shared(int);
-
-#endif
 
 #endif /* _H_main header */

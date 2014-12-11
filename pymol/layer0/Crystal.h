@@ -18,7 +18,7 @@ Z* -------------------------------------------------------------------
 #define _H_Crystal
 
 #include"Vector.h"
-#include"CGO.h"
+#include"CGOStruct.h"
 #include"os_python.h"
 
 typedef struct {
@@ -39,7 +39,6 @@ CCrystal *CrystalCopy(CCrystal * I);
 void CrystalUpdate(CCrystal * I);
 void CrystalDump(CCrystal * I);
 CGO *CrystalGetUnitCellCGO(CCrystal * I);
-CCrystal *CrystalNewFromPyList(PyMOLGlobals * G, PyObject * list);
 int CrystalFromPyList(CCrystal * I, PyObject * list);
 PyObject *CrystalAsPyList(CCrystal * I);
 

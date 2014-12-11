@@ -63,4 +63,6 @@ PyObject *IsosurfAsPyList(Isofield * I);
 Isofield *IsosurfNewFromPyList(PyMOLGlobals * G, PyObject * list);
 Isofield *IsosurfNewCopy(PyMOLGlobals * G, Isofield * src);
 
+void IsofieldGetCorners(PyMOLGlobals *, Isofield *, float *);
+
 #endif

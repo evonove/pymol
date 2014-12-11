@@ -50,6 +50,8 @@ void RayRenderVRML1(CRay * I, int width, int height,
 void RayRenderVRML2(CRay * I, int width, int height,
                     char **vla_ptr, float front, float back,
                     float fov, float angle, float z_corr);
+void RayRenderCOLLADA(CRay * I, int width, int height,
+                    char **vla_ptr, float front, float back, float fov);
 void RayRenderObjMtl(CRay * I, int width, int height, char **objVLA_ptr,
                      char **mtlVLA_ptr, float front, float back, float fov,
                      float angle, float z_corr);
@@ -69,6 +71,13 @@ void RayGetScaledAxes(CRay * I, float *xn, float *yn);
 int RayHashThread(CRayHashThreadInfo * T);
 int RayAntiThread(CRayAntiThreadInfo * T);
 
+// JMS: added so they can be used in COLLADA.c
+int RayExpandPrimitives(CRay * I);
+int RayTransformFirst(CRay * I, int perspective, int identity);
+void RayComputeBox(CRay * I);
+int TriangleReverse(CPrimitive * p);
+
+
 typedef struct {
   int op;
   int x1, y1, z1;
@@ -82,27 +91,31 @@ G3dPrimitive *RayRenderG3d(CRay * I, int width, int height, float front,
                            float back, float fov, int quiet);
 
 struct _CRay {
-  int (*fSphere3fv) (CRay * ray, float *v, float r);
-  int (*fCylinder3fv) (CRay * ray, float *v1, float *v2, float r, float *c1, float *c2);
-  int (*fCustomCylinder3fv) (CRay * ray, float *v1, float *v2, float r, float *c1,
+
+  // methods
+  int sphere3fv(float *v, float r);
+  int cylinder3fv(float *v1, float *v2, float r, float *c1, float *c2);
+  int customCylinder3fv(float *v1, float *v2, float r, float *c1,
 			     float *c2, int cap1, int cap2);
-  int (*fCone3fv) (CRay * ray, float *v1, float *v2, float r1, float r2, float *c1,
+  int cone3fv(float *v1, float *v2, float r1, float r2, float *c1,
 		   float *c2, int cap1, int cap2);
-  int (*fSausage3fv) (CRay * ray, float *v1, float *v2, float r, float *c1, float *c2);
-  void (*fColor3fv) (CRay * ray, float *c);
-  int (*fTriangle3fv) (CRay * ray,
+  int sausage3fv(float *v1, float *v2, float r, float *c1, float *c2);
+  void color3fv(float *c);
+  int triangle3fv(
 		       float *v1, float *v2, float *v3,
 		       float *n1, float *n2, float *n3, float *c1, float *c2, float *c3);
-  int (*fTriangleTrans3fv) (CRay * ray,
+  int triangleTrans3fv(
 			    float *v1, float *v2, float *v3,
 			    float *n1, float *n2, float *n3,
 			    float *c1, float *c2, float *c3,
 			    float t1, float t2, float t3);
-  void (*fWobble) (CRay * ray, int mode, float *par);
-  void (*fTransparentf) (CRay * ray, float t);
-  int (*fCharacter) (CRay * ray, int char_id);
-  void (*fInteriorColor3fv) (CRay * ray, float *v, int passive);
-  int (*fEllipsoid3fv) (CRay * ray, float *v, float r, float *n1, float *n2, float *n3);
+  void wobble(int mode, float *par);
+  void transparentf(float t);
+  int character(int char_id);
+  void interiorColor3fv(float *v, int passive);
+  int ellipsoid3fv(float *v, float r, float *n1, float *n2, float *n3);
+  int setLastToNoLighting(char no_lighting);
+
   /* everything below should be private */
   PyMOLGlobals *G;
   CPrimitive *Primitive;

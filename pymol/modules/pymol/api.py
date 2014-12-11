@@ -4,13 +4,16 @@
 from importing import \
       finish_object,      \
       load,               \
+      loadall,            \
       load_brick,         \
       load_callback,      \
       load_cgo,           \
       load_coords,        \
+      load_coordset,      \
       load_embedded,      \
       load_map,           \
       load_model,         \
+      load_mtz,           \
       load_object,        \
       load_traj,          \
       load_raw,           \
@@ -37,6 +40,7 @@ from creating import \
       isolevel,           \
       isomesh,            \
       isosurface,         \
+      join_states,        \
       map_generate,        \
       map_new,            \
       pseudoatom,         \
@@ -44,7 +48,12 @@ from creating import \
       symexp,             \
       ramp_new,           \
       ungroup,            \
-      volume,             \
+      volume
+
+#--------------------------------------------------------------------
+from colorramping import \
+      volume_ramp_new,   \
+      volume_panel,   \
       volume_color
 
 #--------------------------------------------------------------------
@@ -79,9 +88,11 @@ from controlling import \
 from querying import \
       angle,              \
       auto_measure,       \
+      centerofmass,       \
       count_atoms,        \
       count_frames,       \
       count_states,       \
+      count_discrete,     \
       dist,               \
       dihedral,           \
       distance,           \
@@ -90,12 +101,15 @@ from querying import \
       get_angle,          \
       get_area,           \
       get_chains,         \
+      get_collada,        \
       get_color_index,    \
       get_color_indices,  \
       get_object_color_index, \
       get_object_list,    \
       get_color_tuple,    \
       get_atom_coords,    \
+      get_coords,         \
+      get_coordset,       \
       get_dihedral,       \
       get_distance,       \
       get_drag_object_name, \
@@ -122,8 +136,6 @@ from querying import \
       get_version,        \
       get_volume_field,   \
       get_volume_histogram, \
-      get_volume_ramp, \
-      set_volume_ramp, \
       get_volume_is_updated, \
       get_vrml,           \
       id_atom,            \
@@ -147,6 +159,7 @@ from exporting import \
       cache,              \
       export_coords,      \
       get_pdbstr,         \
+      get_cifstr,         \
       get_session,        \
       get_fastastr,       \
       multisave,          \
@@ -159,6 +172,7 @@ from editing import \
       alter,              \
       alter_list,         \
       alter_state,        \
+      alphatoall,         \
       attach,             \
       bond,               \
       cycle_valence,      \
@@ -202,6 +216,7 @@ from editing import \
       set_geometry,       \
       set_object_color,   \
       set_object_ttt,     \
+      set_state_order,    \
       set_symmetry,       \
       set_title,          \
       smooth,             \
@@ -254,6 +269,7 @@ from wizarding import \
 from fitting import \
       align,             \
       alignto,		 \
+      extra_fit,	 \
       fit,               \
       super,             \
       rms,               \
@@ -271,6 +287,10 @@ from preset import \
       technical,         \
       pretty,         \
       publication
+
+#--------------------------------------------------------------------
+from morphing import \
+    morph
 
 #--------------------------------------------------------------------
 import moving
@@ -380,11 +400,18 @@ from setting import \
       get_setting_text
 
 #--------------------------------------------------------------------
+from parsing import \
+      run, \
+      spawn
+
+#--------------------------------------------------------------------
 import helping
 from helping import \
       abort,               \
+      api,                 \
       show_help,           \
       help,                \
+      help_setting,        \
       commands
 
 #--------------------------------------------------------------------
@@ -397,7 +424,13 @@ from experimenting import \
       mem,                \
       minimize,           \
       spheroid,           \
+      focal_blur,         \
+      callout,            \
+      desaturate,         \
       test
+
+from internal import      \
+      file_read
 
 #--------------------------------------------------------------------
 #from m4x import \

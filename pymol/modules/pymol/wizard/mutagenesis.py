@@ -47,9 +47,13 @@ class Mutagenesis(Wizard):
         Wizard.__init__(self,_self)
         cmd=self.cmd
         pymol=cmd._pymol
+
+        if self.cmd.get_movie_length() > 0:
+            raise pymol.wizarding.WizardError('Mutagenesis Wizard cannot be used with Movie')
         
         cmd.unpick()
         
+        self.bump_scores = []
         self.dep = default_dep
 
         self.ind_library = io.pkl.fromFile(os.environ['PYMOL_DATA']+
@@ -319,6 +323,7 @@ class Mutagenesis(Wizard):
         cmd=self.cmd
         pymol=cmd._pymol
         self.status=0
+        self.bump_scores = []
         cmd.delete(tmp_obj1)
         cmd.delete(tmp_obj2)
         cmd.delete(tmp_obj3)
@@ -455,6 +460,8 @@ class Mutagenesis(Wizard):
         cmd.feedback("disable","selector","everythin")
         cmd.feedback("disable","editor","actions")
         self.prompt = [ 'Loading rotamers...']
+        self.bump_scores = []
+        state_best = 0
 
         pymol.stored.name = 'residue'
         cmd.iterate("first (%s)"%src_sele,'stored.name=model+"/"+segi+"/"+chain+"/"+resn+"`"+resi')
@@ -684,8 +691,13 @@ class Mutagenesis(Wizard):
                 # draw the bumps
                 cmd.set("sculpt_vdw_vis_mode",1,bump_name)
                 state = 1
+                score_best = 1e6
                 for a in lib:
-                    cmd.sculpt_iterate(bump_name,state=state)
+                    score = cmd.sculpt_iterate(bump_name, state, 1)
+                    self.bump_scores.append(score)
+                    if score < score_best:
+                        state_best = state
+                        score_best = score
                     state = state + 1
             cmd.delete(mut_sele)
         else:
@@ -702,7 +714,7 @@ class Mutagenesis(Wizard):
             cmd.show("sticks",obj_name)
         cmd.set('auto_zoom',auto_zoom,quiet=1)
         cmd.delete(frag_name)
-        cmd.frame(0)
+        cmd.frame(state_best)
         cmd.unpick()
         cmd.feedback("pop")
 
@@ -712,6 +724,10 @@ class Mutagenesis(Wizard):
             names = cmd.get_names("all_objects")
             if (bump_name in names) and (obj_name in names):
                 cmd.update(bump_name,obj_name)
+        if self.bump_scores:
+            state = cmd.get_state()
+            print ' Rotamer %d/%d, strain=%.2f' % (state,
+                    cmd.count_states(obj_name), self.bump_scores[state - 1])
                 
     def do_select(self,selection):
         print "Selected!"

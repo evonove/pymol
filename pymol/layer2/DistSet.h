@@ -20,35 +20,34 @@ Z* -------------------------------------------------------------------
 #include"Base.h"
 #include"Rep.h"
 #include"Setting.h"
-#include"PyMOLObject.h"
+#include"ObjectDist.h"
 
 typedef struct CMeasureInfo {
-  /* ObjectMolecule-level atom ID */
-  int id;
+  /* AtomInfoType.unique_id */
+  int id[4];
   /* offset into this distance set's Coord list */
   int offset;
-  /* The ObjectMolecule in which this atom lives */
-  struct ObjectMolecule* obj;
   /* save object state */
-  int state;
-  /* Global selection ID */
-  int selection;
+  int state[4];
   /* distance, angle, or dihedral */
   int measureType;
-  struct CMeasureInfo* prev;
   struct CMeasureInfo* next;
 } CMeasureInfo;
 
 typedef struct DistSet {
-  void (*fUpdate) (struct DistSet * I, int state);
-  void (*fRender) (struct DistSet * I, RenderInfo *);
-  void (*fFree) (struct DistSet * I);
-  void (*fInvalidateRep) (struct DistSet * I, int type, int level);
+  // methods (not fully refactored yet)
+  void fFree();
+
+  // methods
+  void update(int state);
+  void render(RenderInfo *);
+  void invalidateRep(int type, int level);
+
   CObjectState State;
   struct ObjectDist *Obj;
   float *Coord;
   int NIndex;
-  Rep **Rep;                    /* an array of pointers to representations */
+  ::Rep **Rep;                    /* an array of pointers to representations */
   int NRep;
   CSetting *Setting;
   /* extended for mobile distance labels */
@@ -65,8 +64,6 @@ typedef struct DistSet {
   /* -- JV end */
 } DistSet;
 
-#include"ObjectDist.h"
-
 DistSet *DistSetNew(PyMOLGlobals * G);
 PyObject *DistSetAsPyList(DistSet * I);
 int DistSetFromPyList(PyMOLGlobals * G, PyObject * list, DistSet ** cs);
@@ -76,4 +73,5 @@ int DistSetGetLabelVertex(DistSet * I, int at, float *v);
 /* -- JV */
 int DistSetMoveWithObject(DistSet* I, struct ObjectMolecule * O);
 /* -- JV end */
+
 #endif

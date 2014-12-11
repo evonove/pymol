@@ -17,6 +17,8 @@ if __name__=='pymol.helping':
     import string
     import thread
     import cmd
+    import pymol
+    from pymol import CmdException
 
     from cmd import DEFAULT_ERROR, DEFAULT_SUCCESS, _raising, is_ok, is_error
 
@@ -27,7 +29,7 @@ if __name__=='pymol.helping':
             print "(Hit ESC to hide)"
 
 
-    def python_help(*arg):
+    def python_help(string, _self=cmd):
             r'''
 DESCRIPTION
 
@@ -57,7 +59,7 @@ SEE ALSO
 
     extend, run, @
             '''
-            return None
+            return python(string, _self=cmd)
 
 
     def help(command = "commands",_self=cmd):
@@ -89,6 +91,18 @@ USAGE
         else:
             print "Error: unrecognized command"
         return r
+
+    def help_setting(name, quiet=1, _self=cmd):
+        '''
+DESCRIPTION
+
+    Print documentation for a setting.
+
+USAGE
+
+    help_setting name
+        '''
+        raise pymol.IncentiveOnlyException()
 
     def commands():
         '''
@@ -266,95 +280,41 @@ PYMOL API
         _self.help(at_sign)
 
 
-    def run(_self=cmd):
+    def api(name, _self=cmd):
         '''
 DESCRIPTION
 
-    "run" executes an external Python script in a local name space,
-    the main Python namespace, the global PyMOL namespace, or in its
-    own namespace (as a module).
-
-USAGE
-
-    run file [, namespace ]
+    API helper function. Get the full function name (incl. module) of
+    given command.
 
 ARGUMENTS
 
-    file = string: a Python program, typically ending in .py or .pym.
-    
-    namespace = local, global, module, main, or private 
-
-PYMOL API
-
-    Not directly available.  Instead, use cmd.do("run ...").
+    name = string: name of a PyMOL command
 
 NOTES
-
-    The default mode for run is "global".
-
-    Due to an idiosyncracy in Pickle, you can not pickle objects
-    directly created at the main level in a script run as "module",
-    (because the pickled object becomes dependent on that module).
-    Workaround: delegate construction to an imported module.
-
-    '''
-        _self.help(run)
-
-    def spawn(_self=cmd):
-        '''
-DESCRIPTION
-
-    "spawn" launches a Python script in a new thread which will run
-    concurrently with the PyMOL interpreter. It can be run in its own
-    namespace (like a Python module, default), a local name space, or
-    in the global namespace.
-
-USAGE
-
-    run python-script [, ( local | global | module | main | private )]
-
-PYMOL API
-
-    Not directly available.  Instead, use cmd.do("spawn ...").
-
-NOTES
-
-    The default mode for spawn is "module".
-
-    Due to an idiosyncracy in Pickle, you can not pickle objects
-    directly created at the main level in a script run as "module",
-    (because the pickled object becomes dependent on that module).
-    Workaround: delegate construction to an imported module.
-
-    The best way to spawn processes at startup is to use the -l option
-    (see "help launching").
-    '''
-        _self.help(spawn)
-
-    def api(_self=cmd):
-        '''
-DESCRIPTION
 
     The PyMOL Python Application Programming Interface (API) should be
     accessed exclusively through the "cmd" module (never "_cmd"!).  Nearly
     all command-line functions have a corresponding API method.
 
-USAGE
-
     from pymol import cmd
     result = cmd.<command-name>( argument , ... ) 
-
-NOTES
 
     Although the PyMOL core is not multi-threaded, the API is
     thread-safe and can be called asynchronously by external python
     programs.  PyMOL handles the necessary locking to insure that
     internal states do not get corrupted.  This makes it very easy to
     build complicated systems which involve direct realtime visualization.
-
         '''
-
-        _self.help('api')
+        import sys
+        name = _self.kwhash.auto_err(name, 'command')
+        func = cmd.keyword[name][0]
+        print ' CMD:', name
+        print ' API: %s.%s' % (func.__module__, func.__name__)
+        if func == getattr(_self, func.__name__, None):
+            print ' API: cmd.' + func.__name__
+        print ' FILE:', sys.modules[func.__module__].__file__
+        return func
 
     def keyboard(_self=cmd):
         '''
@@ -387,7 +347,7 @@ KEYBOARD COMMANDS and MODIFIERS
     CTRL-V       Paste copied or cut atoms into a new object.
     CTRL-X       Cut the selected atoms.
     CTRL-Y       Redo.
-    CTRL-Z       Udno.
+    CTRL-Z       Undo.
 
 EDITING 
 
@@ -793,7 +753,7 @@ SEE ALSO
     '''
         return None
 
-    def python(_self=cmd):
+    def python(string, _self=cmd):
         '''
 DESCRIPTION
 
@@ -820,7 +780,8 @@ SEE ALSO
 
     abort, embed, skip
     '''
-        return None
+        pymol_names = _self._pymol.__dict__
+        exec(string, pymol_names, pymol_names)
     
     def embed(_self=cmd):
         '''

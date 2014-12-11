@@ -27,10 +27,11 @@ Z* -------------------------------------------------------------------
 #endif
 
 /* BEGIN PROPRIETARY CODE SEGMENT (see disclaimer in "os_proprietary.h") */
-#ifdef __WIN32
+#ifdef WIN32
 PFNGLTEXIMAGE3DPROC getTexImage3D();
+PFNGLACTIVETEXTUREPROC getActiveTexture();
 static PFNGLTEXIMAGE3DPROC glTexImage3D;
-static PFNGLACTIVETEXTUREPROC glActiveTexture = -100l;
+static PFNGLACTIVETEXTUREPROC glActiveTexture;
 static PFNGLGENPROGRAMSARBPROC glGenProgramsARB;
 static PFNGLBINDPROGRAMARBPROC glBindProgramARB;
 static PFNGLDELETEPROGRAMSARBPROC glDeleteProgramsARB;
@@ -182,13 +183,13 @@ void CShaderMgr_AddVBOsToFree(CShaderMgr * I, GLuint *vboid, int nvbos);
 void CShaderMgr_AddVBOToFree(CShaderMgr * I, GLuint vboid);
 void CShaderMgr_FreeAllVBOs(CShaderMgr * I);
 
+void CShaderPrg_Set_Stereo_And_AnaglyphMode(PyMOLGlobals * G, CShaderPrg * shaderPrg);
+
 CShaderPrg *CShaderPrg_Enable_DefaultShader(PyMOLGlobals * G);
 CShaderPrg *CShaderPrg_Enable_DefaultShaderWithSettings(PyMOLGlobals * G, CSetting * set1, CSetting * set2);
 CShaderPrg *CShaderPrg_Enable_DefaultScreenShader(PyMOLGlobals * G);
-
 CShaderPrg *CShaderPrg_Enable_CylinderShader(PyMOLGlobals * G);
 CShaderPrg *CShaderPrg_Enable_DefaultSphereShader(PyMOLGlobals * G);
-
 CShaderPrg *CShaderPrg_Enable_SphereShader(PyMOLGlobals * G, char *name);
 CShaderPrg *CShaderPrg_Enable_SphereShaderARB(PyMOLGlobals * G);
 CShaderPrg *CShaderPrg_Enable_RampShader(PyMOLGlobals * G);

@@ -19,7 +19,6 @@ from pmg_tk.ColorEditor import ColorEditor
 
 from pmg_tk.skins import PMGSkin
 from builder import Builder
-from volume import Volume
 
 import traceback
 
@@ -70,6 +69,18 @@ class Normal(PMGSkin):
     contactemail   = 'sales@schrodinger.com'
     
     # responsible for setup and takedown of the normal skin
+
+    @property
+    def initialdir(self):
+        '''
+        Be in sync with cd/pwd on the console until the first file has been
+        browsed, then remember the last directory.
+        '''
+        return self._initialdir or os.getcwd()
+
+    @initialdir.setter
+    def initialdir(self, value):
+        self._initialdir = value
 
     def complete(self,event):
         st = self.cmd._parser.complete(self.command.get())
@@ -224,10 +235,33 @@ class Normal(PMGSkin):
                                               lambda s=self:
                                               s.toggleFrame(s.buildFrame))
         self.volB = self.buttonAdd(row4, 'Volume',
-                                   lambda s=self:
-                                       s.toggleFrame(s.volFrame))
+                                    self.newVolumeFrame)
         # initialize disabled
         self.volB.config(state=DISABLED)
+
+    def newVolumeFrame(self):
+        volumes = self.cmd.get_names_of_type("object:volume", public=1)
+        if not volumes:
+            return
+        if len(volumes) == 1:
+            self.cmd.volume_panel(volumes[0])
+            return
+        def callback():
+            sels = listbox.getcurselection()
+            if sels:
+                self.cmd.volume_panel(sels[0])
+            window.destroy()
+        title = 'Select a volume object'
+        window = Toplevel(self.app.root)
+        window.title(title)
+        listbox = Pmw.ScrolledListBox(window,
+                labelpos='nw',
+                label_text=title,
+                items=volumes,
+                selectioncommand=callback)
+        listbox.pack(padx=5, pady=5)
+        x, y = window.winfo_pointerxy()
+        window.geometry('+%d+%d' % (x - 20, y - 20))
 
     def destroyButtonArea(self):
         self.app.destroycomponent('row1')
@@ -343,7 +377,6 @@ class Normal(PMGSkin):
 
         self.cmdFrame = Frame(self.dataArea)
         self.buildFrame = Builder(self.app, self.dataArea)
-        self.volFrame = Volume(self.app, self.dataArea)
         
         self.toggleFrame(self.cmdFrame,startup=1)
 
@@ -365,7 +398,6 @@ class Normal(PMGSkin):
         self.entry.bind('<Control-Up>', lambda e: self.back_search())
         self.root.protocol("WM_DELETE_WINDOW", lambda s=self: s.confirm_quit())
         
-        self.initialdir = os.getcwd()
         self.log_file = "log.pml"      
 
 #      self.entry = self.app.createcomponent('entry', (), None,
@@ -408,14 +440,25 @@ class Normal(PMGSkin):
         text.configure(font = self.my_fw_font)
         text.configure(width=74)
 
-        self.balloon.bind(self.entry, 'Command Input Area')
+        self.balloon.bind(self.entry, '''Command Input Area
+
+Get the list of commands by hitting <TAB>
+
+Get the list of arguments for one command with a questionmark:
+PyMOL> color ?
+
+Read the online help for a command with "help":
+PyMOL> help color
+
+Get autocompletion for many arguments by hitting <TAB>
+PyMOL> color ye<TAB>    (will autocomplete "yellow")
+''')
         
         self.focus_entry=0
         self.refocus_entry=0
         if self.app.allow_after:
             self.output.after(100,self.update_feedback)
             self.output.after(100,self.update_menus)
-            self.output.after(100,self.update_volume)
             
         self.output.pack(side=BOTTOM,expand=YES,fill=BOTH)
         self.app.bind(self.entry, 'Command Input Area')
@@ -522,22 +565,11 @@ class Normal(PMGSkin):
                 self.cmd.set("valence","1")
                 self.auto_overlay = self.cmd.get("auto_overlay")
                 self.cmd.set("auto_overlay",1)
-            elif frame == self.volFrame:
-                frame.deferred_activate()
             
     def update_menus(self):
         self.setting.refresh()
-        if self.app.allow_after:
-            self.output.after(500,self.update_menus) # twice a second
 
-    def update_volume(self):
-        # if the volume frame is open, update it
-        if self.volFrame in self.dataArea.slaves():
-            if self.volFrame.update_is_needed():
-                self.volFrame.update_object_list()
-                self.volFrame.update_listbox()
-                self.volFrame.update_transferframe()
-        else:
+        if True:
             # volume frame is closed, update the button
             if len(self.cmd.get_names_of_type("object:volume",public=1))>0:
                 self.volB.config(state=NORMAL)
@@ -545,7 +577,7 @@ class Normal(PMGSkin):
                 self.volB.config(state=DISABLED)
         # keep calling
         if self.app.allow_after:
-            self.output.after(500,self.update_volume) 
+            self.output.after(500,self.update_menus) # twice a second
 
     def file_open(self,tutorial=0):
         # FIXME: finish
@@ -747,6 +779,14 @@ class Normal(PMGSkin):
         self.my_show(self.dialog)
         
     def file_save2(self,result):
+        filetypes_save = [
+            ("PDB File","*.pdb"),
+            ("MOL File","*.mol"),
+            ("MOL2 File","*.mol2"),
+            ("MMD File","*.mmd"),
+            ("PKL File","*.pkl"),
+            ("SDF File","*.sdf"),
+        ]
         # user hit [CANCEL] button
         if result!='OK':
             self.my_withdraw(self.dialog)
@@ -768,13 +808,7 @@ class Normal(PMGSkin):
                         sfile = asksaveasfilename(defaultextension = _def_ext(".pdb"),
                                                   initialfile = sfile,
                                                   initialdir = self.initialdir,
-                                                  filetypes=[
-                                                      ("PDB File","*.pdb"),
-                                                      ("MOL File","*.mol"),
-                                                      ("MOL2 File","*.mol2"),
-                                                      ("MMD File","*.mmd"),
-                                                      ("PKL File","*.pkl"),
-                                                      ])
+                                                  filetypes=filetypes_save)
                         if len(sfile):
                             # maybe use PDBSTRs for saving multiple files to multiple states
                             self.initialdir = re.sub(r"[^\/\\]*$","",sfile)
@@ -825,13 +859,7 @@ class Normal(PMGSkin):
                         sfile = asksaveasfilename(defaultextension = _def_ext(".pdb"),
                                                   initialfile = curName,
                                                   initialdir = self.initialdir,
-                                                  filetypes = [
-                                                      ("PDB File", "*.pdb"),
-                                                      ("MOL File","*.mol"),
-                                                      ("MOL2 File","*.mol2"),
-                                                      ("MMD File","*.mmd"),
-                                                      ("PKL File","*.pkl"),
-                                                      ])
+                                                  filetypes = filetypes_save)
                         # now save the file (customizing states as necessary)
 #                        print "sfile is: ", sfile
 
@@ -898,6 +926,24 @@ class Normal(PMGSkin):
         self.cmd.log("util.hide_sele()\n","util.hide_sele()\n")
         self.util.hide_sele()
             
+    def edit_pymolrc(self):
+        import tkSimpleDialog
+        from pmg_tk.TextEditor import TextEditor
+
+        try:
+            pymolrc = self.pymol.invocation.options.pymolrc[0]
+        except (TypeError, IndexError):
+            if sys.platform.startswith('win'):
+                pymolrc = os.path.expandvars(r'$HOMEDRIVE$HOMEPATH\pymolrc.pml')
+            else:
+                pymolrc = os.path.expandvars(r'$HOME/.pymolrc')
+            pymolrc = tkSimpleDialog.askstring('Create new pymolrc?',
+                    'Filename of new pymolrc',
+                    initialvalue=pymolrc)
+
+        if pymolrc:
+            TextEditor(self.root, pymolrc, 'pymolrc (%s)' % pymolrc)
+
     def file_run(self):
         ofile = askopenfilename(initialdir = os.getcwd(),
                          filetypes=[("All Runnable","*.pml"),
@@ -938,6 +984,15 @@ class Normal(PMGSkin):
             self.cmd.log("save %s\n"%sfile,"cmd.save('%s')\n"%sfile)
             self.cmd.save(sfile,quiet=0)
             
+    def file_save_dae(self):
+        sfile = asksaveasfilename(defaultextension = _def_ext(".dae"),
+                                  initialdir = self.initialdir,
+                 filetypes=[("COLLADA File","*.dae")])
+        if len(sfile):
+            self.initialdir = re.sub(r"[^\/\\]*$","",sfile)
+            self.cmd.log("save %s\n"%sfile,"cmd.save('%s')\n"%sfile)
+            self.cmd.save(sfile,quiet=0)
+
     def file_save_pov(self):
         sfile = asksaveasfilename(defaultextension = _def_ext(".pov"),
                                   initialdir = self.initialdir,
@@ -1006,10 +1061,10 @@ class Normal(PMGSkin):
         
         self.menuBar.addcascademenu('Transparency', name, label, label=label)
         
+        var = getattr(self.setting, setting_name)
         for lab, val in [ ('Off', 0.0), ('20%', 0.2), ('40%', 0.4), 
                                 ('50%', 0.5), ('60%', 0.6), ('80%', 0.8) ]:
-            self.menuBar.addmenuitem(name,  'command', lab, label=lab,
-                                             command = lambda v=val,s=self,sn=setting_name: s.cmd.set(sn, v))
+            self.menuBar.addmenuitem(name, 'radiobutton', label=lab, value=val, variable=var)
 
     def cat_terms(self):
         for path in [ "$PYMOL_PATH/LICENSE.txt", "$PYMOL_PATH/LICENSE.TXT", "$PYMOL_PATH/LICENSE" ]:
@@ -1046,6 +1101,8 @@ class Normal(PMGSkin):
         self.menuBar = Pmw.MenuBar(self.root, balloon=self.balloon,
                                    hull_relief=RAISED, hull_borderwidth=1) 
         self.menuBar.pack(fill=X)
+
+        addmenuitem = self.menuBar.addmenuitem
 
 #        self.menuBar.addmenu('Tutorial', 'Tutorial', side='right')      
 
@@ -1256,11 +1313,6 @@ class Normal(PMGSkin):
                                 label='Open...',
                                 command=self.file_open)
 
-        if _wincheck():
-            self.menuBar.addmenuitem('File', 'command', 'Autoload MTZ file.',
-                                     label='Open MTZ with Defaults...',
-                                     command=self.file_autoload_mtz)
-
         self.menuBar.addmenuitem('File', 'command', 'Save session.',
                                 label='Save Session',
                                 command=self.session_save)
@@ -1290,6 +1342,10 @@ class Normal(PMGSkin):
                                 label='VRML 2...',
                                 command=self.file_save_wrl)
         
+        self.menuBar.addmenuitem('SaveImageAs', 'command', 'Save current image as COLLADA.',
+                                label='COLLADA...',
+                                command=self.file_save_dae)
+
         self.menuBar.addmenuitem('SaveImageAs', 'command', 'Save current image as PovRay input.',
                                 label='POV-Ray...',
                                 command=self.file_save_pov)
@@ -1328,6 +1384,12 @@ class Normal(PMGSkin):
         self.menuBar.addmenuitem('File', 'command', 'Run program or script.',
                                 label='Run...',
                                 command=self.file_run)
+        
+        self.menuBar.addmenuitem('File', 'separator', '')
+
+        self.menuBar.addmenuitem('File', 'command', 'Edit pymolrc',
+                                label='Edit pymolrc',
+                                command=self.edit_pymolrc)
 
         self.menuBar.addmenuitem('File', 'separator', '')
 
@@ -1630,17 +1692,14 @@ class Normal(PMGSkin):
 
 
         self.menuBar.addmenuitem('Residue', 'separator', '')
-        self.menuBar.addmenuitem('Residue', 'command', 'Helix',
-                                         label='Helix',
-                                         command = lambda s=self: s.cmd.do("_ set secondary_structure,1"))
 
-        self.menuBar.addmenuitem('Residue', 'command', 'Antiparallel Beta Sheet',
-                                         label='Antiparallel Beta Sheet',
-                                         command = lambda s=self: s.cmd.do("_ set secondary_structure,2"))
-
-        self.menuBar.addmenuitem('Residue', 'command', 'Parallel Beta Sheet',
-                                         label='Parallel Beta Sheet',
-                                         command = lambda s=self: s.cmd.do("_ set secondary_structure,3"))
+        var = self.setting.secondary_structure
+        for lab, val in [
+                ('Helix', 1),
+                ('Antiparallel Beta Sheet', 2),
+                ('Parallel Beta Sheet', 3),
+            ]:
+            addmenuitem('Residue', 'radiobutton', label=lab, value=val, variable=var)
 
         self.menuBar.addmenuitem('Build', 'separator', '')
 
@@ -1676,33 +1735,12 @@ class Normal(PMGSkin):
 
         self.menuBar.addmenuitem('Sculpting', 'separator', '')
 
-        self.menuBar.addmenuitem('Sculpting', 'command', '1 Cycle/Update',
-                                         label='1 Cycle per Update',
-                                         command = lambda s=self: s.cmd.do("_ set sculpting_cycles=1"))
+        addmenuitem('Sculpting', 'radiobutton', label='1 Cycle per Update', value=1,
+                variable=self.setting.sculpting_cycles)
 
-        self.menuBar.addmenuitem('Sculpting', 'command', '3 Cycles/Update',
-                                         label='3 Cycles per Update',
-                                         command = lambda s=self: s.cmd.do("_ set sculpting_cycles=3"))
-
-        self.menuBar.addmenuitem('Sculpting', 'command', '10 Cycles/Update',
-                                         label='10 Cycles per Update',
-                                         command = lambda s=self: s.cmd.do("_ set sculpting_cycles=10"))
-
-        self.menuBar.addmenuitem('Sculpting', 'command', '33 Cycles/Update',
-                                         label='33 Cycles per Update',
-                                         command = lambda s=self: s.cmd.do("_ set sculpting_cycles=33"))
-
-        self.menuBar.addmenuitem('Sculpting', 'command', '100 Cycles/Update',
-                                         label='100 Cycles per Update',
-                                         command = lambda s=self: s.cmd.do("_ set sculpting_cycles=100"))
-
-        self.menuBar.addmenuitem('Sculpting', 'command', '333 Cycles/Update',
-                                         label='333 Cycles per Update',
-                                         command = lambda s=self: s.cmd.do("_ set sculpting_cycles=333"))
-
-        self.menuBar.addmenuitem('Sculpting', 'command', '1000 Cycles/Update',
-                                         label='1000 Cycles per Update',
-                                         command = lambda s=self: s.cmd.do("_ set sculpting_cycles=1000"))
+        for val in [3, 10, 33, 100, 333, 1000]:
+            addmenuitem('Sculpting', 'radiobutton', label='%d Cycles per Update' % val, value=val,
+                    variable=self.setting.sculpting_cycles)
 
         self.menuBar.addmenuitem('Sculpting', 'separator', '')
 
@@ -1715,35 +1753,16 @@ class Normal(PMGSkin):
 #define cSculptVDW14 0x40
 #define cSculptTors  0x80
 
-        self.menuBar.addmenuitem('Sculpting', 'command', 'Bonds Only',
-                                         label='Bonds Only',
-                                         command = lambda s=self: s.cmd.do("_ set sculpt_field_mask=%d"%(
-            0x01)))
-
-        self.menuBar.addmenuitem('Sculpting', 'command', 'Bonds & Angles Only',
-                                         label='Bonds & Angles Only',
-                                         command = lambda s=self: s.cmd.do("_ set sculpt_field_mask=%d"%(
-            0x01+0x02)))
-        
-        self.menuBar.addmenuitem('Sculpting', 'command', 'Local Geometry Only',
-                                         label='Local Geometry Only',
-                                         command = lambda s=self: s.cmd.do("_ set sculpt_field_mask=%d"%(
-            0x01+0x02+0x04+0x08+0x10)))
-
-        self.menuBar.addmenuitem('Sculpting', 'command', 'All Except VDW',
-                                         label='All Except VDW',
-                                         command = lambda s=self: s.cmd.do("_ set sculpt_field_mask=%d"%(
-            0x01+0x02+0x04+0x08+0x10+0x80)))
-
-        self.menuBar.addmenuitem('Sculpting', 'command', 'All Except 1-4 VDW & Torsions',
-                                         label='All Except 1-4 VDW & Torsions',
-                                         command = lambda s=self: s.cmd.do("_ set sculpt_field_mask=%d"%(
-            0x01+0x02+0x04+0x08+0x10+0x20)))
-
-        self.menuBar.addmenuitem('Sculpting', 'command', 'All Terms',
-                                         label='All Terms',
-                                         command = lambda s=self: s.cmd.do("_ set sculpt_field_mask=%d"%(
-            0xFF)))
+        var = self.setting.sculpt_field_mask
+        for lab, val in [
+                ('Bonds Only', 0x01),
+                ('Bonds & Angles Only', 0x01+0x02),
+                ('Local Geometry Only', 0x01+0x02+0x04+0x08+0x10),
+                ('All Except VDW', 0x01+0x02+0x04+0x08+0x10+0x80),
+                ('All Except 1-4 VDW & Torsions', 0x01+0x02+0x04+0x08+0x10+0x20),
+                ('All Terms', 0xFF),
+            ]:
+            addmenuitem('Sculpting', 'radiobutton', label=lab, value=val, variable=var)
 
 
         self.menuBar.addmenuitem('Build', 'separator', '')
@@ -2125,10 +2144,6 @@ class Normal(PMGSkin):
         self.menuBar.addcascademenu('Movie', 'Frame Rate', 'Playback Frame Rate',
                                     label='Frame Rate')
 
-        self.menuBar.addmenuitem('Frame Rate', 'command', 'Maximum',
-                                         label='Maximum',
-                                         command = lambda s=self: s.cmd.set("movie_fps","-1",log=1))
-
         self.menuBar.addmenuitem('Frame Rate', 'command', '30 FPS',
                                          label='30 FPS',
                                          command = lambda s=self: s.cmd.set("movie_fps","30",log=1))
@@ -2231,43 +2246,26 @@ class Normal(PMGSkin):
 
 
 
-        self.menuBar.addmenuitem('Sequence', 'command', 'Residue Codes',
-                                         label='Residue Codes',
-                                         command = lambda s=self: s.cmd.do("_ set seq_view_format,0"))
-
-        self.menuBar.addmenuitem('Sequence', 'command', 'Residue Names',
-                                         label='Residues',
-                                         command = lambda s=self: s.cmd.do("_ set seq_view_format,1"))
-
-        self.menuBar.addmenuitem('Sequence', 'command', 'Chain Identifiers',
-                                         label='Chains',
-                                         command = lambda s=self: s.cmd.do("_ set seq_view_format,3"))
-
-        self.menuBar.addmenuitem('Sequence', 'command', 'Atom Names',
-                                         label='Atoms',
-                                         command = lambda s=self: s.cmd.do("_ set seq_view_format,2"))
-
-        self.menuBar.addmenuitem('Sequence', 'command', 'States',
-                                         label='States',
-                                         command = lambda s=self: s.cmd.do("_ set seq_view_format,4"))
+        var = self.setting.seq_view_format
+        for lab, val in [
+                ('Residue Codes', 0),
+                ('Residue Names', 1),
+                ('Chain Identifiers', 3),
+                ('Atom Names', 2),
+                ('States', 4),
+            ]:
+            addmenuitem('Sequence', 'radiobutton', label=lab, value=val, variable=var)
 
         self.menuBar.addmenuitem('Sequence', 'separator', '')
 
-        self.menuBar.addmenuitem('Sequence', 'command', 'All Residue Numbers',
-                                         label='All Residue Numbers',
-                                         command = lambda s=self: s.cmd.do("_ set seq_view_label_mode,2"))
-
-        self.menuBar.addmenuitem('Sequence', 'command', 'Top Sequence Only',
-                                 label='Top Sequence Only',
-                                 command = lambda s=self: s.cmd.do("_ set seq_view_label_mode,1"))
-
-        self.menuBar.addmenuitem('Sequence', 'command', 'Object Names Only',
-                                 label='Object Names Only',
-                                 command = lambda s=self: s.cmd.do("_ set seq_view_label_mode,0"))
-
-        self.menuBar.addmenuitem('Sequence', 'command', 'No Labels',
-                                 label='No Labels',
-                                 command = lambda s=self: s.cmd.do("_ set seq_view_label_mode,3"))
+        var = self.setting.seq_view_label_mode
+        for lab, val in [
+                ('All Residue Numbers', 2),
+                ('Top Sequence Only', 1),
+                ('Object Names Only', 0),
+                ('No Labels', 3),
+            ]:
+            addmenuitem('Sequence', 'radiobutton', label=lab, value=val, variable=var)
 
         self.menuBar.addmenuitem('Display', 'checkbutton',
                                  'Stereo',
@@ -2301,6 +2299,10 @@ class Normal(PMGSkin):
         self.menuBar.addmenuitem('Stereo', 'command', 'Quad-Buffered Stereo',
                                          label='Quad-Buffered Stereo',
                                          command = lambda s=self: s.cmd.do("_ stereo quadbuffer"))
+
+        self.menuBar.addmenuitem('Stereo', 'command', 'Zalman Stereo',
+                                         label='Zalman Stereo',
+                                         command = lambda s=self: s.cmd.do("_ stereo byrow"))
 
         self.menuBar.addmenuitem('Stereo', 'separator', '')
 
@@ -2389,21 +2391,14 @@ class Normal(PMGSkin):
 
         self.menuBar.addmenuitem('Background', 'separator', '')
         
-        self.menuBar.addmenuitem('Background', 'command', 'White Background',
-                                         label='White',
-                                         command = lambda s=self: s.cmd.do("_ cmd.bg_color('white')"))
-
-        self.menuBar.addmenuitem('Background', 'command', 'Light Grey',
-                                         label='Light Grey',
-                                         command = lambda s=self: s.cmd.do("_ cmd.bg_color('grey80')"))
-
-        self.menuBar.addmenuitem('Background', 'command', 'Grey Background',
-                                         label='Grey',
-                                         command = lambda s=self: s.cmd.do("_ cmd.bg_color('grey50')"))
-
-        self.menuBar.addmenuitem('Background', 'command', 'Black Background',
-                                         label='Black',
-                                         command = lambda s=self: s.cmd.do("_ cmd.bg_color('black')"))
+        var = self.setting.bg_rgb
+        for lab, val in [
+                ('White', 0), # white
+                ('Light Grey', 134), # grey80
+                ('Grey', 104), # grey50
+                ('Black', 1), # black
+            ]:
+            addmenuitem('Background', 'radiobutton', label=lab, value=val, variable=var)
 
 
         self.menuBar.addcascademenu('Display', 'Color Space', 'Color Space',
@@ -2444,17 +2439,13 @@ class Normal(PMGSkin):
         self.menuBar.addcascademenu('Display', 'Grid', 'Grid',
                                              label='Grid')
 
-        self.menuBar.addmenuitem('Grid', 'command', 'By Object',
-                                         label='By Object',
-                                         command = lambda s=self: s.cmd.do("_ set grid_mode, 1"))
-
-        self.menuBar.addmenuitem('Grid', 'command', 'By State',
-                                         label='By State',
-                                         command = lambda s=self: s.cmd.do("_ set grid_mode, 2"))
-                                 
-        self.menuBar.addmenuitem('Grid', 'command', 'Disable',
-                                         label='Disable',
-                                         command = lambda s=self: s.cmd.do("_ set grid_mode, 0"))
+        var = self.setting.grid_mode
+        for lab, val in [
+                ('By Object', 1),
+                ('By State', 2),
+                ('Disable', 0),
+            ]:
+            addmenuitem('Grid', 'radiobutton', label=lab, value=val, variable=var)
         
         self.menuBar.addmenuitem('Display', 'separator', '')
         
@@ -2500,12 +2491,6 @@ class Normal(PMGSkin):
                                  'Use Display Lists.',
                                  label='Use Display Lists',
                                 variable = self.setting.use_display_lists,
-                                )
-
-        self.menuBar.addmenuitem('Display', 'checkbutton',
-                                 'Texture Fonts',
-                                 label='Texture Fonts',
-                                variable = self.setting.texture_fonts,
                                 )
 
         self.menuBar.addmenuitem('Display', 'checkbutton',
@@ -2928,6 +2913,18 @@ class Normal(PMGSkin):
                                  command = lambda s=self:
                                  s.cmd.do("_ cmd.set('surface_mode',3)"))
 
+        self.menuBar.addcascademenu('Setting', 'Volume', label='Volume')
+
+        self.menuBar.addmenuitem('Volume', 'checkbutton', label='Pre-integrated Rendering',
+                                state='disabled',
+                                variable = self.setting.volume_mode)
+
+        self.menuBar.addcascademenu('Volume', 'VolumeLayers', label='Number of Layers')
+
+        for i in (100., 256., 500., 1000.):
+            self.menuBar.addmenuitem('VolumeLayers', 'radiobutton', label='%.0f' % i,
+                    value=i, variable=self.setting.volume_layers)
+
         self.menuBar.addcascademenu('Setting', 'Transparency', 'Transparency',
                                              label='Transparency')
 
@@ -2960,7 +2957,7 @@ class Normal(PMGSkin):
 
         self.menuBar.addmenuitem('Rendering', 'checkbutton',
                                  'Smooth raytracing.',
-                                 label='Antialias',
+                                 label='Antialias (Ray Tracing)',
                                 variable = self.setting.antialias,
                                 )
 
@@ -3138,40 +3135,9 @@ class Normal(PMGSkin):
         self.menuBar.addcascademenu('Setting', 'Control', 'Control Size',
                                              label='Control Size')
 
-        self.menuBar.addmenuitem('Control', 'command', '12',
-                                         label='12',
-                                         command = lambda s=self:
-                                         s.cmd.do("_ set internal_gui_control_size,12,quiet=1"))
-
-        self.menuBar.addmenuitem('Control', 'command', '14',
-                                         label='14',
-                                         command = lambda s=self:
-                                         s.cmd.do("_ set internal_gui_control_size,14,quiet=1"))
-
-        self.menuBar.addmenuitem('Control', 'command', '16',
-                                         label='16',
-                                         command = lambda s=self:
-                                         s.cmd.do("_ set internal_gui_control_size,16,quiet=1"))
-
-        self.menuBar.addmenuitem('Control', 'command', '18',
-                                         label='18 (default)',
-                                         command = lambda s=self:
-                                         s.cmd.do("_ set internal_gui_control_size,18,quiet=1"))
-
-        self.menuBar.addmenuitem('Control', 'command', '20',
-                                         label='20',
-                                         command = lambda s=self:
-                                         s.cmd.do("_ set internal_gui_control_size,20,quiet=1"))
-
-        self.menuBar.addmenuitem('Control', 'command', '24',
-                                         label='24',
-                                         command = lambda s=self:
-                                         s.cmd.do("_ set internal_gui_control_size,24,quiet=1"))
-
-        self.menuBar.addmenuitem('Control', 'command', '30',
-                                         label='30',
-                                         command = lambda s=self:
-                                         s.cmd.do("_ set internal_gui_control_size,30,quiet=1"))
+        for val in [12, 14, 16, 18, 20, 24, 30]:
+            addmenuitem('Control', 'radiobutton', label=str(val), value=val,
+                    variable=self.setting.internal_gui_control_size)
 
         self.menuBar.addmenuitem('Setting', 'separator', '')
         
@@ -3335,44 +3301,22 @@ class Normal(PMGSkin):
         self.menuBar.addcascademenu('Mouse', 'SelectionMode', 'Selection Mode',
                                              label='Selection Mode')
 
-        self.menuBar.addmenuitem('SelectionMode', 'command', 'Atoms',
-                                         label='Atoms',
-                                         command = lambda s=self:
-                                         s.cmd.do("_ set mouse_selection_mode,0,quiet=1"))
-
-        self.menuBar.addmenuitem('SelectionMode', 'command', 'Residues',
-                                         label='Residues',
-                                         command = lambda s=self:
-                                         s.cmd.do("_ set mouse_selection_mode,1,quiet=1"))
-
-        self.menuBar.addmenuitem('SelectionMode', 'command', 'Chains',
-                                         label='Chains',
-                                         command = lambda s=self:
-                                         s.cmd.do("_ set mouse_selection_mode,2,quiet=1"))
-
-        self.menuBar.addmenuitem('SelectionMode', 'command', 'Segments',
-                                         label='Segments',
-                                         command = lambda s=self:
-                                         s.cmd.do("_ set mouse_selection_mode,3,quiet=1"))
-
-        self.menuBar.addmenuitem('SelectionMode', 'command', 'Objects',
-                                         label='Objects',
-                                         command = lambda s=self:
-                                         s.cmd.do("_ set mouse_selection_mode,4,quiet=1"))
-
-        self.menuBar.addmenuitem('SelectionMode', 'separator', '')
-
-        self.menuBar.addmenuitem('SelectionMode', 'command', 'Molecules',
-                                         label='Molecules',
-                                         command = lambda s=self:
-                                         s.cmd.do("_ set mouse_selection_mode,5,quiet=1"))
-
-        self.menuBar.addmenuitem('SelectionMode', 'separator', '')
-
-        self.menuBar.addmenuitem('SelectionMode', 'command', 'C-alphas',
-                                         label='C-alphas',
-                                         command = lambda s=self:
-                                         s.cmd.do("_ set mouse_selection_mode,6,quiet=1"))
+        var = self.setting.mouse_selection_mode
+        for lab, val in [
+                ('Atoms', 0),
+                ('Residues', 1),
+                ('Chains', 2),
+                ('Segments', 3),
+                ('Objects', 4),
+                ('', -1),
+                ('Molecules', 5),
+                ('', -1),
+                ('C-alphas', 6),
+            ]:
+            if not lab:
+                addmenuitem('SelectionMode', 'separator', '')
+            else:
+                addmenuitem('SelectionMode', 'radiobutton', label=lab, value=val, variable=var)
 
         self.menuBar.addmenuitem('Mouse', 'separator', '')
 
@@ -3593,7 +3537,7 @@ class Normal(PMGSkin):
              'For more information, browse to: %s\n or send email to: %s' %\
              (self.contactweb, self.contactemail))
         self.about = Pmw.AboutDialog(self.root, applicationname=self.appname)
-        self.about.activate()
+        self.my_activate(self.about)
         self.about.withdraw()
         
     def createInterface(self):
@@ -3654,6 +3598,7 @@ class Normal(PMGSkin):
         self.auto_overlay = None
         self.edit_mode = None
         self.valence = None
+        self._initialdir = ''
 
 def __init__(app):
     return Normal(app)

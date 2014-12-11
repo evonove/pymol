@@ -81,6 +81,9 @@ typedef struct ObjectMolecule {
   struct CSculpt *Sculpt;
   int RepVisCacheValid;
   signed char RepVisCache[cRepCnt];     /* for transient storage during updates */
+
+  // methods
+  int getState();
 } ObjectMolecule;
 
 /* this is a record that holds information for specific types of Operatations on Molecules, eg. translation/rotation/etc */
@@ -246,6 +249,20 @@ typedef struct {
   ObjectNameType name;
 } ObjMolMultiplexType;
 
+/* loop iterators for the ObjectMolecule::Neighbor array
+ *
+ * Arguments: (Neighbor array, const int atom-index, int neighbor-atom-or-bond-index, int used-internally)
+ *
+ * Example:
+ * // iterate over neighbors of obj->AtomInfo[at]
+ * int neighbor_at, tmp;
+ * ITERNEIGHBORATOMS(obj->Neighbor, at, neighbor_at, tmp) {
+ *   // do something with obj->AtomInfo[neighbor_at]
+ * }
+ */
+#define ITERNEIGHBORATOMS(N, a, n, i) for(i = N[a] + 1; (n = N[i]) > -1; i += 2)
+#define ITERNEIGHBORBONDS(N, a, b, i) for(i = N[a] + 1; (b = N[i + 1]), N[i] > -1; i += 2)
+
 void M4XAnnoInit(M4XAnnoType * m4x);
 void M4XAnnoPurge(M4XAnnoType * m4x);
 
@@ -273,7 +290,7 @@ void ObjectMoleculeM4XAnnotate(ObjectMolecule * I, M4XAnnoType * m4x, char *scri
 /* */
 int ObjectMoleculeAreAtomsBonded2(ObjectMolecule * obj0, int a0, ObjectMolecule * obj1,
                                   int a1);
-int ObjectMoleculeIsAtomBondedToName(ObjectMolecule * obj, int a0, char *name);
+int ObjectMoleculeIsAtomBondedToName(ObjectMolecule * obj, int a0, char *name, int);
 void ObjectMoleculeOpRecInit(ObjectMoleculeOpRec * op);
 int ObjectMoleculeNewFromPyList(PyMOLGlobals * G, PyObject * list,
                                 ObjectMolecule ** result);
@@ -283,6 +300,8 @@ int ObjectMoleculeSetStateTitle(ObjectMolecule * I, int state, char *text);
 char *ObjectMoleculeGetStateTitle(ObjectMolecule * I, int state);
 int ObjectMoleculeCheckFullStateSelection(ObjectMolecule * I, int sele, int state);
 void ObjectMoleculeFree(ObjectMolecule * I);    /* only for friends of ObjectMolecule */
+
+int ObjectMoleculeSetStateOrder(ObjectMolecule * I, int * order, int len);
 
 int ObjectMoleculeAddPseudoatom(ObjectMolecule * I, int sele_index, char *name,
                                 char *resn, char *resi, char *chain,
@@ -322,9 +341,11 @@ ObjectMolecule *ObjectMoleculeReadPMO(PyMOLGlobals * G, ObjectMolecule * obj, CR
                                       int frame, int discrete);
 
 ObjectMolecule *ObjectMoleculeReadStr(PyMOLGlobals * G, ObjectMolecule * I,
-                                      char *st, int content_format, int frame,
+                                      char **next_entry,
+                                      int content_format, int frame,
                                       int discrete, int quiet, int multiplex,
-                                      char *new_name, char **next_entry);
+                                      char *new_name,
+				      short loadpropertiesall=false, OVLexicon *loadproplex=NULL);
 
 ObjectMolecule *ObjectMoleculeReadPDBStr(PyMOLGlobals * G, ObjectMolecule * obj,
                                          char *molstr, int frame, int discrete,
@@ -435,14 +456,13 @@ int ObjectMoleculeConnect(ObjectMolecule * I, int *nbond, BondType ** bond, Atom
 int ObjectMoleculeSetDiscrete(PyMOLGlobals * G, ObjectMolecule * I, int discrete);
 
 float ObjectMoleculeGetMaxVDW(ObjectMolecule * I);
-int ObjectMoleculeGetCheckHBond(int *h_is_real,
+int ObjectMoleculeGetCheckHBond(AtomInfoType **h_real,
                                 float *h_crd_ret,
                                 ObjectMolecule * don_obj,
                                 int don_atom,
                                 int don_state,
                                 ObjectMolecule * acc_obj,
-                                int acc_atom, int acc_state, HBondCriteria * hbc,
-				int * h_idx);
+                                int acc_atom, int acc_state, HBondCriteria * hbc);
 void ObjectMoleculeInitHBondCriteria(PyMOLGlobals * G, HBondCriteria * hbc);
 int ObjectMoleculeConvertIDsToIndices(ObjectMolecule * I, int *id, int n_id);
 
@@ -476,4 +496,8 @@ void ObjectMoleculeAdjustDiscreteAtmIdx(ObjectMolecule *I, int *lookup, int nAto
 
 int *AtomInfoGetSortedIndex(PyMOLGlobals * G, ObjectMolecule * obj, AtomInfoType * rec, int n,
                             int **outdex);
+
+ObjectMolecule *ObjectMoleculeReadCifStr(PyMOLGlobals * G, ObjectMolecule * I,
+    char *st, int frame, int discrete, int quiet, int multiplex, char *new_name);
+
 #endif

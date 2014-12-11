@@ -35,52 +35,52 @@ if __name__=='pymol.querying':
                     _self.distance()
         _self.unpick()   
 
-    def get_volume_field(objName,_self=cmd):
+    def get_volume_field(objName, state=1, copy=1, _self=cmd):
+        '''
+DESCRIPTION
+
+    EXPERIMENTAL AND SUBJECT TO CHANGE - DO NOT USE
+    API only. Get the raw data of a map or volume object.
+
+ARGUMENTS
+
+    objName = str: object name
+
+    state = int: state index {default: 1}
+
+    copy = 0/1: {default: 1} WARNING: only use copy=0 if you know what you're
+    doing. copy=0 will return a numpy array which is a wrapper of the internal
+    memory. If the internal memory gets freed or reallocated, this wrapper
+    will become invalid.
+        '''
         r = DEFAULT_ERROR
         try:
             _self.lock(_self)
-            r = _self._cmd.get_volume_field(_self._COb,objName)
+            r = _self._cmd.get_volume_field(_self._COb, objName, int(state) - 1, int(copy))
         finally:
             _self.unlock(r,_self)
         return r
 
-    def get_volume_histogram(objName,_self=cmd):
-        r = DEFAULT_ERROR
-        try:
-            _self.lock(_self)
-            r = _self._cmd.get_volume_histogram(_self._COb,objName)
-        finally:
-            _self.unlock(r,_self)
-        return r
+    def get_volume_histogram(objName, bins=64, range=None, _self=cmd):
+        '''
+DESCRIPTION
 
-    def get_volume_ramp(objName,_self=cmd):
+    API ONLY.  Get min, max, mean, stdev and histogram of a map or volume
+    object as a list of length bins + 4.
+        '''
         r = DEFAULT_ERROR
         try:
             _self.lock(_self)
-            r = _self._cmd.get_volume_ramp(_self._COb,objName)
+            r = _self._cmd.get_volume_histogram(_self._COb,objName,
+                    int(bins), range or (0., 0.))
         finally:
             _self.unlock(r,_self)
         return r
 
     def get_volume_is_updated(objName,_self=cmd):
-        r = DEFAULT_ERROR
-        try:
-            _self.lock(_self)
-            r = _self._cmd.get_volume_is_updated(_self._COb,objName)
-        finally:
-            _self.unlock(r,_self)
-        return r
+        print ' DEPRECATED: get_volume_is_updated'
+        return 1
  
-    # SHOULD BE MOVED SOMWHERE ELSE
-    def set_volume_ramp(objName, ramp, _self=cmd):
-        r = DEFAULT_ERROR
-        try:
-            _self.lock(_self)
-            r = _self._cmd.set_volume_ramp(_self._COb,objName,ramp)
-        finally:
-            _self.unlock(r,_self)
-        return r
-
     def get_unused_name(prefix="tmp",alwaysnumber=1,_self=cmd):
         r = DEFAULT_ERROR        
         # should replace this with a C function
@@ -606,26 +606,21 @@ PYMOL API
     cmd.get_version(int quiet)
 
 	'''
-        r = DEFAULT_ERROR
-        try:
-            _self.lock(_self)   
-            r = _cmd.get_version(_self._COb)
-        finally:
-            _self.unlock(r,_self)
+        # get_version doesn't need the _COb and doesn't require a lock
+        r = _cmd.get_version()
         if _raising(r,_self):
             raise pymol.CmdException
         else:
             quiet = int(quiet)
             if quiet < 1 and _feedback(fb_module.cmd, fb_mask.results, _self):
-                print " version: %s (%2.3f) %d," % r[:3],
-                print "Incentive Product" if pymol.invocation.options.incentive_product else "Open-Source"
+                import re
+                p = pymol.get_version_message(r)
+                print re.sub(r'^', ' ', p, re.M)
                 if quiet < 0:
                     if r[3]:
                         print ' build date:', time.strftime('%c %Z', time.localtime(r[3]))
                     if r[4]:
                         print ' git sha:', r[4]
-                    if r[5]:
-                        print ' svn rev:', r[5]
         return r
 
     def get_vrml(version=2,_self=cmd): 
@@ -648,6 +643,25 @@ PYMOL API
             _self.unlock(r,_self)
         if _raising(r,_self): raise pymol.CmdException
         return r
+
+    def get_collada(version=2, _self=cmd):
+        '''
+DESCRIPTION
+
+    "get_collada" returns a COLLADA string representing the content
+    currently displayed.
+
+PYMOL API
+
+    cmd.get_collada()
+
+        '''
+        r = DEFAULT_ERROR
+        with _self.lockcm:
+            r = _cmd.get_collada(_self._COb,int(version))
+        if _raising(r,_self): raise pymol.CmdException
+        return r
+
 
     def count_states(selection="(all)", quiet=1, _self=cmd):
         '''
@@ -904,9 +918,47 @@ DESCRIPTION
             if _self._raising(_self=_self): raise pymol.CmdException
         elif not quiet:
             for a in r:
-                print " cmd.get_coords: [%8.3f,%8.3f,%8.3f]"%(a)
+                print " cmd.get_atom_coords: [%8.3f,%8.3f,%8.3f]"%(a)
         if _raising(r,_self): raise pymol.CmdException
         return r
+
+    def get_coords(selection='all', state=1, quiet=1, _self=cmd):
+        '''
+DESCRIPTION
+
+    API only. Get selection coordinates as numpy array.
+
+ARGUMENTS
+
+    selection = str: atom selection {default: all}
+
+    state = int: state index or all states if state=0 {default: 1}
+        '''
+        selection = selector.process(selection)
+        with _self.lockcm:
+            r = _cmd.get_coords(_self._COb, selection, int(state) - 1)
+            return r
+
+    def get_coordset(name, state=1, copy=1, quiet=1, _self=cmd):
+        '''
+DESCRIPTION
+
+    API only. Get object coordinates as numpy array.
+
+ARGUMENTS
+
+    selection = str: atom selection {default: all}
+
+    state = int: state index {default: 1}
+
+    copy = 0/1: {default: 1} WARNING: only use copy=0 if you know what you're
+    doing. copy=0 will return a numpy array which is a wrapper of the internal
+    coordinate set memory. If the internal memory gets freed or reallocated,
+    this wrapper will become invalid.
+        '''
+        with _self.lockcm:
+            r = _cmd.get_coordset(_self._COb, name, int(state) - 1, int(copy))
+            return r
 
     
     def get_position(quiet=1, _self=cmd):
@@ -1464,6 +1516,18 @@ PYMOL API
         if _raising(r,_self): raise pymol.CmdException
         return r
 
+    def count_discrete(selection, quiet=1, _self=cmd):
+        '''
+DESCRIPTION
+
+    Count the number of discrete objects in selection.
+        '''
+        with _self.lockcm:
+            r = _cmd.count_discrete(_self._COb, str(selection))
+            if not int(quiet):
+                print ' count_discrete: %d' % r
+            return r
+
     def get_names_of_type(type,public=1,_self=cmd):
         """
 DESCRIPTION
@@ -1519,7 +1583,7 @@ DESCRIPTION
 
     Returns the effective object state.
         '''
-        states = cmd.count_states(name)
+        states = cmd.count_states('%' + name)
         if states < 2 and cmd.get_setting_boolean('static_singletons'):
             return 1
         state = cmd.get_setting_int('state', name)
@@ -1542,4 +1606,53 @@ DESCRIPTION
             raise pymol.CmdException('Selection spans multiple object states')
         return state_set.pop()
 
+    def centerofmass(selection='(all)', state=-1, quiet=1, _self=cmd):
+        '''
+DESCRIPTION
+
+    Calculates the center of mass. Considers atom mass and occupancy.
+
+ARGUMENTS
+
+    selection = string: atom selection {default: all}
+
+    state = integer: object state, -1 for current state, 0 for all states
+    {default: -1}
+
+NOTES
+
+    If occupancy is 0.0 for an atom, set it to 1.0 for the calculation
+    (assume it was loaded from a file without occupancy information).
+
+SEE ALSO
+
+    get_extent
+        '''
+        from chempy import cpv
+        state, quiet = int(state), int(quiet)
+
+        if state < 0:
+            states = [get_selection_state(selection)]
+        elif state == 0:
+            states = range(1, _self.count_states(selection)+1)
+        else:
+            states = [state]
+
+        com = cpv.get_null()
+        totmass = 0.0
+
+        for state in states:
+            model = _self.get_model(selection, state)
+            for a in model.atom:
+                m = a.get_mass() * (a.q or 1.0)
+                com = cpv.add(com, cpv.scale(a.coord, m))
+                totmass += m
+
+        if not totmass:
+            raise pymol.CmdException('mass is zero')
+
+        com = cpv.scale(com, 1./totmass)
+        if not quiet:
+            print ' Center of Mass: [%8.3f,%8.3f,%8.3f]' % tuple(com)
+        return com
 

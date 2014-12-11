@@ -177,7 +177,7 @@ if __name__=='pymol.setting':
         ray_texture                        = 139
         ray_texture_settings               = 140
         suspend_updates                    = 141
-        full_screen                        = 142
+        full_screen                        = 142 # deprecated
         surface_mode                       = 143
         surface_color                      = 144
         mesh_mode                          = 145
@@ -421,7 +421,6 @@ if __name__=='pymol.setting':
         cartoon_side_chain_helper          = 383             
         surface_optimize_subsets           = 384 
         multiplex                          = 385 
-        texture_fonts                      = 386 
         pqr_no_chain_id                    = 387 
         animation                          = 388 
         animation_duration                 = 389 
@@ -685,7 +684,7 @@ if __name__=='pymol.setting':
         use_shaders                        = 647
         shader_path                        = 648
         volume_bit_depth                   = 649
-        volume_color                       = 650
+#        volume_color                       = 650
         volume_layers                      = 651
         volume_data_range                  = 652
         auto_defer_atom_count              = 653
@@ -737,8 +736,8 @@ if __name__=='pymol.setting':
         alignment_as_cylinders             = 692
         cartoon_nucleic_acid_as_cylinders  = 693
         cgo_shader_ub_flags                = 694
-        offscreen_rendering_for_antialiasing = 695
-        offscreen_rendering_multiplier     = 696
+        antialias_shader                   = 695
+        # offscreen_rendering_multiplier     = 696
         cylinder_shader_ff_workaround      = 697
         surface_color_smoothing            = 698
         surface_color_smoothing_threshold  = 699
@@ -781,6 +780,10 @@ if __name__=='pymol.setting':
         pick_labels                        = 736
         label_z_target                     = 737
         session_embeds_data                = 738
+        volume_mode                        = 739
+        # trilines                           = 740
+        collada_export_lighting            = 741
+        collada_geometry_mode              = 742
 
     setting_sc = Shortcut(SettingIndex.__dict__.keys())
     
@@ -962,12 +965,12 @@ PYMOL API
                                  "("+selection1+")","("+selection2+")",
                                  int(state)-1,int(quiet),
                                  int(updates))
+                except QuietException:
+                    pass
                 except:
-                    traceback.print_exc()
                     if(_feedback(fb_module.cmd,fb_mask.debugging,_self)):
                         traceback.print_exc()
-                        print "Error: unable to read setting value."
-                    raise QuietException
+                    raise _self.pymol.CmdException("invalid value: %s" % repr(value))
             finally:
                 _self.unlock(r,_self)
         if _self._raising(r,_self): raise QuietException            
@@ -1120,11 +1123,12 @@ SEE ALSO
                                      selection,
                                      int(state)-1,int(quiet),
                                      int(updates))
+                except QuietException:
+                    pass
                 except:
                     if(_feedback(fb_module.cmd,fb_mask.debugging,_self)):
                         traceback.print_exc()
-                        print "Error: unable to read setting value."
-                    raise QuietException
+                    raise _self.pymol.CmdException("invalid value: %s" % repr(value))
             finally:
                 _self.unlock(r,_self)
         if _self._raising(r,_self): raise QuietException            

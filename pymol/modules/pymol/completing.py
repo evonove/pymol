@@ -6,6 +6,10 @@ expr_sc = cmd.Shortcut([
     'q', 'b', 'partial_charge', 'vdw',
 ])
 
+def vol_ramp_sc():
+    from . import colorramping
+    return cmd.Shortcut(colorramping.namedramps)
+
 aa_exp_e = [ expr_sc                    , 'expression'      , ''   ]
 aa_sel_e = [ cmd.selection_sc           , 'selection'       , ''   ]
 aa_sel_c = [ cmd.selection_sc           , 'selection'       , ', ' ]
@@ -15,6 +19,8 @@ aa_obj_c = [ cmd.object_sc              , 'object'          , ', ' ]
 aa_set_c = [ cmd.setting.setting_sc     , 'setting'         , ', ' ]
 aa_map_c = [ cmd.map_sc                 , 'map object'      , ', ' ]
 aa_rep_c = [ cmd.repres_sc              , 'representation'  , ', ' ]
+aa_v_r_c = [ vol_ramp_sc                , 'volume ramp'     , ', ' ]
+aa_ali_e = [ cmd.Shortcut(['align', 'super', 'cealign']), 'alignment method', '']
 
 def wizard_sc():
     import os, pymol.wizard
@@ -23,12 +29,18 @@ def wizard_sc():
     return cmd.Shortcut(names_glob)
 
 def get_auto_arg_list(self_cmd=cmd):
+    aa_vol_c = [ lambda:
+            cmd.Shortcut(self_cmd.get_names_of_type('object:volume')),
+            'volume', '' ]
+
     return [
 # 1st
         {
         'align'          : aa_sel_c,
         'alignto'        : aa_obj_c,
         'alter'          : aa_sel_e,
+        'alphatoall'     : aa_sel_c,
+        'api'            : [ self_cmd.kwhash, 'command', '' ],
         'bond'           : aa_sel_e,
         'as'             : aa_rep_c,
         'bg_color'       : [ lambda c=self_cmd:c._get_color_sc(c), 'color'       , ''   ],      
@@ -37,17 +49,20 @@ def get_auto_arg_list(self_cmd=cmd):
         'cache'          : [ self_cmd.exporting.cache_action_sc , 'cache mode'   , ', ' ],
         'center'         : aa_sel_e,
         'cealign'        : aa_sel_e,
+        'centerofmass'   : aa_sel_e,
         'color'          : [ lambda c=self_cmd:c._get_color_sc(c), 'color'       , ', ' ],
         'config_mouse'   : [ self_cmd.controlling.ring_dict_sc, 'mouse cycle'    , ''   ],
         'clean'          : aa_sel_c,
         'clip'           : [ self_cmd.viewing.clip_action_sc , 'clipping action' , ', ' ],
         'count_atoms'    : aa_sel_e,
+        'count_discrete' : aa_sel_e,
         'delete'         : aa_sel_e,
         'deprotect'      : aa_sel_e,
         'disable'        : aa_obj_s,
         'distance'       : aa_obj_e,
         'dss'            : aa_sel_e,
         'enable'         : aa_obj_s,
+        'extra_fit'      : aa_sel_e,
         'extract'        : aa_obj_e,
         'feedback'       : [ self_cmd.fb_action_sc           , 'action'          , ', ' ],
         'fit'            : aa_sel_e,
@@ -56,13 +71,15 @@ def get_auto_arg_list(self_cmd=cmd):
         'get'            : aa_set_c,
         'get_area'       : aa_sel_e,
         'get_bond'       : aa_set_c,
+        'get_property_list' : aa_obj_c,
+        'get_symmetry'   : aa_obj_c,
         'gradient'       : [ self_cmd.object_sc              , 'gradient'        , ', ' ],
         'group'          : [ self_cmd.group_sc               , 'group object'    , ', ' ],
         'help'           : [ self_cmd.help_sc                , 'selection'       , ''   ],
+        'help_setting'   : [ self_cmd.setting.setting_sc     , 'setting'         , ''   ],
         'hide'           : aa_rep_c,
         'isolevel'       : [ self_cmd.contour_sc             , 'contour'         , ', ' ],
         'iterate'        : aa_sel_e,
-        'iterate_state'  : aa_sel_e,
         'indicate'       : aa_sel_e,
         'intra_fit'      : aa_sel_e,
         'label'          : aa_sel_e,
@@ -103,6 +120,8 @@ def get_auto_arg_list(self_cmd=cmd):
         'unset_bond'     : aa_set_c,
         'update'         : aa_sel_e,
         'valence'        : [ self_cmd.editing.order_sc       , 'order'           , ', ' ],
+        'volume_color'   : aa_vol_c,
+        'volume_panel'   : aa_vol_c,
         'view'           : [ self_cmd._pymol._view_dict_sc   , 'view'            , ''   ],         
         'window'         : [ self_cmd.window_sc              , 'action'          , ', ' ],      
         'wizard'         : [ wizard_sc                       , 'wizard'          , ', '   ],
@@ -111,7 +130,10 @@ def get_auto_arg_list(self_cmd=cmd):
 # 2nd
         {
         'align'          : aa_sel_e,
+        'alignto'        : aa_ali_e,
         'alter'          : aa_exp_e,
+        'alter_state'    : aa_sel_e,
+        'alphatoall'     : aa_exp_e,
         'as'             : aa_sel_e,
         'bond'           : aa_sel_e,
         'button'         : [ self_cmd.controlling.but_mod_sc , 'modifier'        , ', ' ],
@@ -120,20 +142,25 @@ def get_auto_arg_list(self_cmd=cmd):
         'color'          : aa_sel_e,
         'create'         : aa_sel_c,
         'distance'       : aa_sel_e,
+        'extra_fit'      : aa_obj_e,
         'extract'        : aa_sel_e,
         'feedback'       : [ self_cmd.fb_module_sc           , 'module'          , ', ' ],
         'flag'           : aa_sel_c,
         'get'            : aa_obj_c,
         'get_bond'       : aa_sel_c,
+        'get_property'   : aa_obj_c,
         'gradient'       : aa_map_c,
         'group'          : aa_obj_c,
         'hide'           : aa_sel_e,
         'isomesh'        : aa_map_c,
         'isosurface'     : aa_map_c,
         'iterate'        : aa_exp_e,
+        'iterate_state'  : aa_sel_e,
+        'join_states'    : aa_sel_e,
         'volume'         : aa_map_c,
         'select'         : aa_sel_e,
         'save'           : aa_sel_c,
+        'label'          : aa_exp_e,
         'load'           : aa_sel_c,
         'load_traj'      : aa_sel_c,
         'map_set'        : [ self_cmd.editing.map_op_sc      , 'operator'        , ', ' ],
@@ -158,24 +185,32 @@ def get_auto_arg_list(self_cmd=cmd):
         'update'         : aa_sel_e,
         'ramp_new'       : aa_map_c,
         'valence'        : aa_sel_c,
+        'volume_color'   : aa_v_r_c,
         },
 #3rd
         {
+        'alter_state'    : aa_exp_e,
         'button'         : [ self_cmd.controlling.but_act_sc , 'button action'   , ''   ],
+        'callout'        : aa_sel_e,
         'distance'       : aa_sel_e,
+        'extra_fit'      : aa_ali_e,
         'feedback'       : [ self_cmd.fb_mask_sc             , 'mask'            , ''   ],            
         'flag'           : [ self_cmd.editing.flag_action_sc , 'flag action'     , ''   ],
         'get_bond'       : aa_sel_e,
         'group'          : [ self_cmd.creating.group_action_sc, 'group action'    , ''   ],
+        'iterate_state'  : aa_exp_e,
         'map_set'        : [ self_cmd.map_sc                 , 'map'             , ' '  ],
         'morph'          : aa_sel_e,
         'order'          : [ self_cmd.controlling.location_sc, 'location'        , ', ' ],
         'set'            : aa_sel_c,
         'set_bond'       : aa_sel_c,
+        'set_property'   : aa_obj_c,
+        'set_atom_property'   : aa_obj_c,
         'spectrum'       : aa_sel_e,
         'symexp'         : aa_sel_c,
         'unset_bond'     : aa_sel_c,
         'valence'        : aa_sel_c,
+        'volume'         : aa_v_r_c,
         },
 #4th
         {

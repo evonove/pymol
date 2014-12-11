@@ -1552,7 +1552,8 @@ SEE ALSO
                         for rep_name in rep_list:
                             name = "_scene_"+key+"_"+rep_name
                             _self.select(name,"rep "+rep_name)
-                    if message:
+                    if is_string(message):
+                        if message:
                             if (message[0:1] in [ '"',"'"] and
                                  message[-1:] in [ '"',"'"]):
                                 message=message[1:-1]
@@ -1826,7 +1827,7 @@ NOTES
         else:
             try:
                 _self.lock(_self)
-                r = _self._do("_cmd.full_screen(_self._COb,%d)"%int(toggle))
+                r = _self._do("full_screen %s" % (toggle), echo=0)
             finally:
                 _self.unlock(r,_self)
         if _self._raising(r,_self): raise QuietException
@@ -1905,7 +1906,7 @@ NOTES
             if len(str(expression))==0:
                 r= _cmd.label(_self._COb,"("+str(selection)+")",'',quiet)
             else:
-                r = _cmd.label(_self._COb,"("+str(selection)+")",'label='+str(expression),quiet)
+                r = _cmd.label(_self._COb,"("+str(selection)+")",str(expression),quiet)
         finally:
             _self.unlock(r,_self)   
         if _self._raising(r,_self): raise QuietException
